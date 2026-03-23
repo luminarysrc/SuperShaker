@@ -17,6 +17,7 @@ export default function App() {
   const [gcodeStats, setGcodeStats] = useState(null);
   const [allSheets, setAllSheets] = useState(null);
   const [nestingResult, setNestingResult] = useState(null);
+  const [orderId, setOrderId] = useState("");
 
   const handleLogin = useCallback((u) => setUser(u), []);
   const handleLogout = useCallback(() => {
@@ -27,11 +28,12 @@ export default function App() {
     setNestingResult(null);
   }, []);
 
-  const handleGcodeGenerated = useCallback(({ gcodeText, gcodeData, stats, allSheets }) => {
+  const handleGcodeGenerated = useCallback(({ gcodeText, gcodeData, stats, allSheets, orderId }) => {
     setGcodeData(gcodeData);
     setGcodeText(gcodeText);
     setGcodeStats(stats);
     setAllSheets(allSheets);
+    setOrderId(orderId || "");
   }, []);
 
   const handleNestingDone = useCallback((result) => {
@@ -40,6 +42,7 @@ export default function App() {
     setGcodeData(null);
     setGcodeText(null);
     setAllSheets(null);
+    setOrderId("");
   }, []);
 
   if (!user) return <LoginScreen onLogin={handleLogin} />;
@@ -63,6 +66,7 @@ export default function App() {
             gcodeText={gcodeText}
             stats={gcodeStats}
             allSheets={allSheets}
+            orderId={orderId}
           />
         </div>
       </div>

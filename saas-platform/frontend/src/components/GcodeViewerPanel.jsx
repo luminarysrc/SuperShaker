@@ -11,6 +11,7 @@ export default function GcodeViewerPanel({
   gcodeText,
   stats,
   allSheets,
+  orderId,
 }) {
   const [activeSheet, setActiveSheet] = useState(0);
   const [localGcode, setLocalGcode] = useState(null);
@@ -50,9 +51,11 @@ export default function GcodeViewerPanel({
   const handleDownload = useCallback(() => {
     if (displayText) {
       const sheetNum = allSheets ? activeSheet + 1 : 1;
-      downloadGcode(displayText, `toolpath_sheet${sheetNum}.gcode`);
+      let filename = orderId ? `${orderId}_sheet${sheetNum}.gcode` : `toolpath_sheet${sheetNum}.gcode`;
+      filename = filename.replace(/[^a-zA-Z0-9_\-\.]/g, '_');
+      downloadGcode(displayText, filename);
     }
-  }, [displayText, activeSheet, allSheets]);
+  }, [displayText, activeSheet, allSheets, orderId]);
 
   return (
     <div className="h-full flex flex-col bg-cnc-bg" id="gcode-viewer-panel">

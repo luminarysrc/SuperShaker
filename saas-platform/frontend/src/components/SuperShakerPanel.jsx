@@ -108,6 +108,7 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone }) {
           gcodeData: parsed,
           stats: firstSheet.stats,
           allSheets: result.sheets,
+          orderId: settings.order_id,
         });
       }
     } catch (e) {
