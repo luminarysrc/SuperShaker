@@ -16,11 +16,11 @@ export default function GcodeViewerPanel({
   const [activeSheet, setActiveSheet] = useState(0);
   const [localGcode, setLocalGcode] = useState(null);
   const [localGcodeData, setLocalGcodeData] = useState(null);
-  const [showGcodeText, setShowGcodeText] = useState(true);
+  const [showGcodeText, setShowGcodeText] = useState(false);
 
-  // Use provided data or local overrides
   const displayData = localGcodeData || gcodeData;
   const displayText = localGcode || gcodeText;
+  const currentStats = allSheets ? allSheets[activeSheet]?.stats : stats;
 
   // ── File upload ──────────────────────────────────────
   const handleFileUpload = useCallback(async (e) => {
@@ -92,27 +92,51 @@ export default function GcodeViewerPanel({
         )}
 
         {/* G-code text toggle */}
-        <button onClick={() => setShowGcodeText(!showGcodeText)}
-          className={`px-2 py-1 rounded text-xs transition-all border
-            ${showGcodeText
-              ? "bg-cnc-accent/15 text-cnc-accent border-cnc-accent/30"
-              : "text-cnc-text-muted border-cnc-border hover:border-cnc-accent/20"}`}>
-          { showGcodeText ? "3D" : "TXT" }
-        </button>
+        <div className="relative flex items-center bg-[#0a0a0a] rounded-lg p-1.5 border border-white/10 w-[180px] cursor-pointer shadow-[inset_0_2px_8px_rgba(0,0,0,0.8)]">
+          {/* Slider thumb */}
+          <div 
+            className="absolute top-1.5 bottom-1.5 w-[82px] rounded-md bg-[#1a1a1a] border border-white/5 shadow-[0_2px_8px_rgba(0,0,0,0.8)] transition-transform duration-300 ease-out"
+            style={{ transform: showGcodeText ? "translateX(84px)" : "translateX(0px)" }}
+          />
+          <button 
+            disabled={!displayData && !displayText}
+            onClick={() => setShowGcodeText(false)}
+            className={`relative z-10 flex-1 text-center text-xs font-mono font-bold py-1.5 transition-all select-none ${!showGcodeText ? 'text-[#C6F321] drop-shadow-[0_0_8px_rgba(198,243,33,0.6)] scale-105' : 'text-gray-600 hover:text-gray-400'}`}>
+            3D VIEW
+          </button>
+          <button 
+            disabled={!displayData && !displayText}
+            onClick={() => setShowGcodeText(true)}
+            className={`relative z-10 flex-1 text-center text-xs font-mono font-bold py-1.5 transition-all select-none ${showGcodeText ? 'text-[#00FFFF] drop-shadow-[0_0_8px_rgba(0,255,255,0.6)] scale-105' : 'text-gray-600 hover:text-gray-400'}`}>
+            G-CODE
+          </button>
+        </div>
 
         {/* Upload */}
-        <label className="px-2 py-1 rounded text-xs text-cnc-text-muted border border-cnc-border
-                          hover:border-cnc-accent/20 cursor-pointer transition-all">
-          📂
+        <label className="group relative w-10 h-10 rounded-lg bg-[#0a0a0a] text-gray-500 border border-white/10 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]
+                          hover:bg-[#1a1a1a] hover:text-[#00FFFF] hover:border-[#00FFFF]/50 hover:shadow-[0_0_12px_rgba(0,255,255,0.3)]
+                          cursor-pointer transition-all flex items-center justify-center active:scale-95">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" 
+               stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+               className="group-hover:drop-shadow-[0_0_8px_rgba(0,255,255,0.8)] transition-all">
+            <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+          </svg>
           <input type="file" accept=".nc,.gcode,.ngc,.txt" className="hidden"
                  onChange={handleFileUpload} />
         </label>
 
         {/* Download */}
         <button onClick={handleDownload} disabled={!displayText}
-          className="px-2 py-1 rounded text-xs text-cnc-text-muted border border-cnc-border
-                     hover:border-cnc-accent/20 disabled:opacity-30 transition-all">
-          💾
+          className="group relative w-10 h-10 rounded-lg bg-[#0a0a0a] text-gray-500 border border-white/10 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]
+                     hover:bg-[#1a1a1a] hover:text-[#C6F321] hover:border-[#C6F321]/50 hover:shadow-[0_0_12px_rgba(198,243,33,0.3)]
+                     disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center justify-center active:scale-95">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" 
+               stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+               className="group-hover:drop-shadow-[0_0_8px_rgba(198,243,33,0.8)] transition-all">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" x2="12" y1="15" y2="3"/>
+          </svg>
         </button>
       </div>
 
@@ -124,12 +148,22 @@ export default function GcodeViewerPanel({
             {displayText}
           </pre>
         ) : displayData ? (
-          <ThreeViewer gcodeData={displayData} />
+          <ThreeViewer 
+            gcodeData={displayData} 
+            bedWidth={currentStats?.sheet_w} 
+            bedHeight={currentStats?.sheet_h} 
+          />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-cnc-text-muted gap-3">
             <div className="w-16 h-16 rounded-2xl bg-cnc-card border border-cnc-border
-                            flex items-center justify-center text-2xl">
-              🔧
+                            flex items-center justify-center text-cnc-accent/50 shadow-inner">
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" 
+                   stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m15.5 15.5 4.6 4.6a2.1 2.1 0 1 1-2.9 2.9l-4.6-4.6"/>
+                <path d="M21.1 21.1 19 19"/>
+                <path d="m5 16 1.4-1.4c.5-.5 1.4-.4 1.8.1.3.4.2 1-.1 1.4L6.9 17.3c-.4.4-1 .3-1.4-.1-.4-.5-.3-1.1.1-1.5L7 14.3c.4-.4.3-1.1-.1-1.5-.5-.4-1.4-.3-1.8.1L3.9 14.1c1.5 2.1 4.1 3 6.6 2.3l4.6 4.6"/>
+                <path d="M12.9 2.4A7.9 7.9 0 0 0 5 9.1c0 1.2.3 2.5 1 3.5l4-1.4a.5.5 0 0 1 .6.6l-1.4 4c1 .7 2.3 1 3.5 1a7.9 7.9 0 0 0 7.4-10.5 7.9 7.9 0 0 0-7.2-4.3z"/>
+              </svg>
             </div>
             <p className="text-sm font-medium">No G-code loaded</p>
             <p className="text-xs text-cnc-text-muted text-center max-w-[200px]">

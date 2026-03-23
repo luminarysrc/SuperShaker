@@ -53,7 +53,7 @@ export default function App() {
       <div className="flex-1 flex min-w-0">
         {/* Left: SuperShaker Tool Panel */}
         <div className="w-[380px] min-w-[340px] max-w-[440px] flex-shrink-0
-                        border-r border-cnc-border">
+                        border-r border-[rgba(255,255,255,0.08)] bg-[#0F0F11]">
           <SuperShakerPanel
             onGcodeGenerated={handleGcodeGenerated}
             onNestingDone={handleNestingDone}

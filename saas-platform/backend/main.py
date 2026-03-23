@@ -287,6 +287,8 @@ async def generate_gcode(req: GenerateRequest):
             "stats": {
                 "line_count": line_count,
                 "parts_on_sheet": len(sheets[idx]),
+                "sheet_w": s["sheet_w"],
+                "sheet_h": s["sheet_h"],
             },
         })
 

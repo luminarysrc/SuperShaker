@@ -7,12 +7,12 @@
    ═══════════════════════════════════════════════════════════ */
 
 :root {
-  --cnc-bg:          #0a0e14;
-  --cnc-surface:     #111827;
-  --cnc-card:        #1a2234;
-  --cnc-border:      #263044;
-  --cnc-accent:      #38bdf8;
-  --cnc-accent-2:    #818cf8;
+  --cnc-bg:          #080808;
+  --cnc-surface:     #0b1a13;
+  --cnc-card:        #10241b;
+  --cnc-border:      #1a3d2e;
+  --cnc-accent:      #C6F321;
+  --cnc-accent-2:    #00FFCC;
   --cnc-text:        #e2e8f0;
   --cnc-text-muted:  #64748b;
   --cnc-danger:      #ef4444;
@@ -28,6 +28,11 @@
     -webkit-font-smoothing: antialiased;
     margin: 0;
     padding: 0;
+    background-image: 
+      linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 32px 32px;
+    background-position: center top;
   }
 
   * {
@@ -54,9 +59,9 @@
 @layer components {
   /* Inputs */
   .cnc-input {
-    @apply bg-cnc-card border border-cnc-border rounded-lg px-3 py-2
+    @apply bg-white/[0.03] border border-transparent rounded-lg px-3 py-2
            text-cnc-text text-sm font-mono
-           focus:outline-none focus:border-cnc-accent/50 focus:ring-1 focus:ring-cnc-accent/20
+           focus:outline-none focus:border-cnc-accent/50 focus:ring-1 focus:ring-cnc-accent/50
            transition-all duration-200;
   }
   .cnc-input::-webkit-inner-spin-button,
@@ -66,12 +71,12 @@
 
   /* Buttons */
   .cnc-btn-primary {
-    @apply bg-gradient-to-r from-cnc-accent to-blue-600
-           text-white font-semibold rounded-lg
-           hover:shadow-lg hover:shadow-cnc-accent/20
+    @apply bg-[#C6F321] text-black font-semibold rounded-[6px]
+           shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]
+           hover:shadow-[0_0_15px_rgba(198,243,33,0.3),inset_0_1px_0_rgba(255,255,255,0.2)] hover:bg-[#d4fa41]
            active:scale-[0.98]
            disabled:opacity-40 disabled:pointer-events-none
-           transition-all duration-200;
+           transition-all duration-200 border-none;
   }
   .cnc-btn-ghost {
     @apply bg-cnc-card border border-cnc-border rounded-lg
@@ -98,8 +103,8 @@
 }
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.1); }
-  50% { box-shadow: 0 0 12px 2px rgba(56, 189, 248, 0.15); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(198, 243, 33, 0.1); }
+  50% { box-shadow: 0 0 12px 2px rgba(198, 243, 33, 0.15); }
 }
 .animate-pulse-glow {
   animation: pulse-glow 2.5s ease-in-out infinite;

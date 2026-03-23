@@ -206,7 +206,7 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone }) {
 
   // ═══════════════════════════════════════════════════════
   return (
-    <div className="h-full overflow-y-auto bg-cnc-surface" id="supershaker-panel">
+    <div className="h-full overflow-y-auto bg-transparent" id="supershaker-panel">
       <div className="p-4 space-y-4">
 
         {/* ── KPI Bar ───────────────────────────────────── */}
@@ -215,7 +215,7 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone }) {
             {[
               { label: "SHEETS", value: nestingResult.total_sheets, color: "text-sky-400" },
               { label: "PARTS", value: nestingResult.total_parts, color: "text-green-400" },
-              { label: "YIELD", value: `${nestingResult.yield_percentage}%`, color: "text-amber-400" },
+              { label: "YIELD", value: `${nestingResult.yield_percentage}%`, color: "text-cnc-accent [text-shadow:0_0_10px_rgba(198,243,33,0.3)]" },
               { label: "AREA", value: `${nestingResult.total_area_m2}m²`, color: "text-purple-400" },
             ].map(k => (
               <div key={k.label} className="bg-cnc-card rounded-lg p-2 text-center border border-cnc-border">
@@ -263,9 +263,13 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone }) {
             </div>
 
             {/* Add door */}
-            <section className="space-y-2">
-              <h3 className="text-xs font-semibold text-cnc-text-muted uppercase tracking-wider
-                             border-b border-cnc-border pb-1">Add Part</h3>
+            <section className="space-y-4">
+              <div className="flex items-center gap-3">
+                <h3 className="text-[10px] font-mono font-semibold text-cnc-text-muted uppercase tracking-widest whitespace-nowrap">
+                  Add Part
+                </h3>
+                <hr className="flex-1 border-white/5" />
+              </div>
               <div className="grid grid-cols-[1fr_1fr_1fr_1.8fr] gap-2">
                 <div>
                   <label className="text-[10px] text-cnc-text-muted block mb-0.5">W mm</label>
@@ -290,9 +294,9 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone }) {
                   <select value={newDoor.type}
                     onChange={e => setNewDoor(p => ({...p, type: e.target.value}))}
                     className="cnc-input w-full text-xs py-[7px]">
-                    <option>Shaker</option>
-                    <option>Shaker Step</option>
-                    <option>Slab</option>
+                    <option className="bg-[#1A1A1A] text-white">Shaker</option>
+                    <option className="bg-[#1A1A1A] text-white">Shaker Step</option>
+                    <option className="bg-[#1A1A1A] text-white">Slab</option>
                   </select>
                 </div>
               </div>
@@ -304,11 +308,12 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone }) {
 
             {/* Parts table */}
             {doors.length > 0 && (
-              <section className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-semibold text-cnc-text-muted uppercase tracking-wider">
+              <section className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-[10px] font-mono font-semibold text-cnc-text-muted uppercase tracking-widest whitespace-nowrap">
                     Parts ({doors.length})
                   </h3>
+                  <hr className="flex-1 border-white/5" />
                   <button onClick={handleClear}
                     className="text-[10px] text-cnc-text-muted hover:text-red-400 transition-colors">
                     Clear All
@@ -363,17 +368,21 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone }) {
                 {isLoading === "nesting" ? (
                   <><Spinner /> Running Nesting...</>
                 ) : (
-                  "📐 Run Nesting"
+                  <>
+                    Run Nesting
+                  </>
                 )}
               </button>
 
               <button onClick={handleGenerate}
                 disabled={!!isLoading || !nestingResult}
-                className="cnc-btn-primary w-full text-sm py-2.5 flex items-center justify-center gap-2">
+                className="cnc-btn-primary w-full text-sm py-2.5 flex items-center justify-center gap-2 mt-2 shadow-lg shadow-cnc-accent/10">
                 {isLoading === "generating" ? (
                   <><Spinner /> Generating...</>
                 ) : (
-                  "⚡ Generate G-code"
+                  <>
+                    Generate G-code
+                  </>
                 )}
               </button>
             </div>
