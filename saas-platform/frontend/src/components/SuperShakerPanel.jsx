@@ -108,7 +108,7 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone }) {
           gcodeData: parsed,
           stats: firstSheet.stats,
           allSheets: result.sheets,
-          orderId: settings.order_id,
+          orderId: settings?.order_id || "",
         });
       }
     } catch (e) {
@@ -116,7 +116,7 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone }) {
     } finally {
       setIsLoading("");
     }
-  }, [onGcodeGenerated]);
+  }, [onGcodeGenerated, settings]);
 
   // ── Draw nesting preview ──────────────────────────────
   useEffect(() => {
