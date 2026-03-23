@@ -1,0 +1,118 @@
+/* ══════════════════════════════════════════════════════════════
+   SuperShaker SaaS — Global Styles
+   Dark CNC-themed design system
+   ══════════════════════════════════════════════════════════════ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Base resets ─────────────────────────────────────────────── */
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #2e3345 #1a1d27;
+  }
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  *::-webkit-scrollbar-track {
+    background: #1a1d27;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: #2e3345;
+    border-radius: 3px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: #3b82f6;
+  }
+}
+
+/* ── Reusable component classes ──────────────────────────────── */
+@layer components {
+  /* Card container used throughout the dashboard */
+  .cnc-card {
+    @apply bg-cnc-card border border-cnc-border rounded-xl p-5;
+  }
+
+  /* Primary action button */
+  .cnc-btn-primary {
+    @apply bg-cnc-accent hover:bg-cnc-accent-hover text-white
+           font-semibold px-5 py-2.5 rounded-lg
+           transition-all duration-200
+           active:scale-[0.97]
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* Secondary / ghost button */
+  .cnc-btn-ghost {
+    @apply bg-transparent hover:bg-cnc-card text-cnc-text-muted
+           hover:text-cnc-text border border-cnc-border
+           font-medium px-4 py-2 rounded-lg
+           transition-all duration-200;
+  }
+
+  /* Text input field */
+  .cnc-input {
+    @apply bg-cnc-surface border border-cnc-border rounded-lg
+           px-3 py-2 text-cnc-text text-sm font-mono
+           focus:outline-none focus:border-cnc-accent focus:ring-1 focus:ring-cnc-accent/30
+           placeholder:text-cnc-text-muted/50
+           transition-colors duration-150;
+  }
+
+  /* Select dropdown */
+  .cnc-select {
+    @apply bg-cnc-surface border border-cnc-border rounded-lg
+           px-3 py-2 text-cnc-text text-sm
+           focus:outline-none focus:border-cnc-accent
+           cursor-pointer appearance-none;
+  }
+
+  /* Label for form fields */
+  .cnc-label {
+    @apply block text-xs font-medium text-cnc-text-muted uppercase tracking-wider mb-1.5;
+  }
+
+  /* Subtle animated gradient glow on hover (for cards) */
+  .cnc-glow {
+    @apply relative overflow-hidden;
+  }
+  .cnc-glow::before {
+    content: "";
+    @apply absolute inset-0 rounded-xl opacity-0 transition-opacity duration-300;
+    background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(139,92,246,0.06));
+  }
+  .cnc-glow:hover::before {
+    @apply opacity-100;
+  }
+}
+
+/* ── Animations ──────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59,130,246,0.3); }
+  50%      { box-shadow: 0 0 12px 4px rgba(59,130,246,0.15); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out both;
+}
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Stagger children fade-in */
+.stagger-children > * {
+  animation: fadeIn 0.35s ease-out both;
+}
+.stagger-children > *:nth-child(1) { animation-delay: 0.04s; }
+.stagger-children > *:nth-child(2) { animation-delay: 0.08s; }
+.stagger-children > *:nth-child(3) { animation-delay: 0.12s; }
+.stagger-children > *:nth-child(4) { animation-delay: 0.16s; }
+.stagger-children > *:nth-child(5) { animation-delay: 0.20s; }
+.stagger-children > *:nth-child(6) { animation-delay: 0.24s; }

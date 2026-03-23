@@ -1,0 +1,775 @@
+# SuperShaker SaaS Platform — Technical Specification & Architecture Blueprint
+
+> **Author:** Principal Full-Stack Architecture Review
+> **Date:** 2026-03-17
+> **Source Codebase:** [SuperShaker_v5.4.2.py](file:///home/victor/Documents/Work/SuperShaker/SuperShaker_v5.4.2.py) (2,439 lines) + [gcode_viewer_gui.py](file:///home/victor/Documents/Work/SuperShaker/G-code%20Visualizer/gcode_viewer_gui.py) (181 lines)
+
+---
+
+## Table of Contents
+
+1. [Executive Summary & Codebase Analysis](#1-executive-summary--codebase-analysis)
+2. [High-Level System Architecture](#2-high-level-system-architecture)
+3. [Core Engine Integration & IP Protection](#3-core-engine-integration--ip-protection)
+4. [High-Performance Frontend & 3D Visualization](#4-high-performance-frontend--3d-visualization)
+5. [Backend Architecture & Data Management](#5-backend-architecture--data-management)
+6. [SaaS Infrastructure, Auth & Monetization](#6-saas-infrastructure-auth--monetization)
+7. [Cloud Hosting & DevOps Strategy](#7-cloud-hosting--devops-strategy)
+8. [Definitive Tech Stack](#8-definitive-tech-stack)
+9. [Phased Implementation Roadmap](#9-phased-implementation-roadmap)
+10. [Top 3 Technical Bottlenecks & Mitigations](#10-top-3-technical-bottlenecks--mitigations)
+
+---
+
+## 1. Executive Summary & Codebase Analysis
+
+### What You Have
+
+Your existing codebase is a **monolithic Python/Tkinter desktop application** that performs:
+
+| Module | Lines | Key Algorithms |
+|---|---|---|
+| **MaxRects Bin-Packing** ([MaxRectsPacker](file:///home/victor/Documents/Work/SuperShaker/SuperShaker_v5.4.2.py#14-93)) | ~93 | Best Short Side Fit (BSSF) + center-biased packing for small parts |
+| **Chip-Load Calculator** ([calc_t6_params](file:///home/victor/Documents/Work/SuperShaker/SuperShaker_v5.4.2.py#229-345)) | ~115 | Feed/speed calc for PCD/TCT tools on MDF/HDF with DOC correction |
+| **G-code Generator** ([generate_gcode](file:///home/victor/Documents/Work/SuperShaker/SuperShaker_v5.4.2.py#1643-2434)) | ~800 | 4-op pipeline: pocket → corner-rest → miter/chamfer → contour cutout |
+| **Nesting Engine** ([do_nesting](file:///home/victor/Documents/Work/SuperShaker/SuperShaker_v5.4.2.py#1151-1239)) | ~90 | Multi-strategy sort with rotation, 2-phase large/small packing |
+| **PDF Export** (labels + cutting map) | ~280 | ReportLab-based per-part labels with minimap + B&W operator sheets |
+| **3D Visualizer** (separate file) | 181 | Plotly Scatter3D with tool-separated rapid/cut paths |
+
+**Dependencies:** `tkinter`, `pandas`, `reportlab`, `plotly`, [re](file:///home/victor/Documents/Work/SuperShaker/SuperShaker_v5.4.2.py#148-151), `json`, `math` — **100% pure Python, no native C/C++ bindings**.
+
+### Key Architectural Insight
+
+Your core is **CPU-bound pure Python** — no GPU, no native libraries, no FFI. This is both an advantage (easy to port) and a challenge (performance at scale). The recommendation below is calibrated to this reality.
+
+---
+
+## 2. High-Level System Architecture
+
+```mermaid
+graph TB
+    subgraph "Client (Browser)"
+        UI[React SPA]
+        V3D[Three.js 3D Viewer]
+        WW[Web Worker - G-code Parser]
+    end
+
+    subgraph "Edge / CDN"
+        CF[Cloudflare CDN]
+    end
+
+    subgraph "API Gateway"
+        GW[Kong / AWS API Gateway]
+    end
+
+    subgraph "Backend Services"
+        AUTH[Auth Service - Supabase]
+        API[Core API - FastAPI Python]
+        NEST[Nesting Engine - FastAPI]
+        GCODE[G-code Generator - FastAPI]
+        PDF[PDF Export Service - FastAPI]
+        BILL[Billing Service - Stripe SDK]
+    end
+
+    subgraph "Async Processing"
+        Q[Redis + Bull Queue]
+        W[Worker Pods - G-code Gen]
+    end
+
+    subgraph "Data Layer"
+        PG[(PostgreSQL)]
+        S3[(S3 / R2 Object Storage)]
+        REDIS[(Redis Cache)]
+    end
+
+    UI --> CF --> GW
+    V3D --> CF
+    WW --> V3D
+    GW --> AUTH
+    GW --> API
+    API --> NEST
+    API --> GCODE
+    API --> PDF
+    API --> BILL
+    GCODE --> Q --> W
+    W --> S3
+    API --> PG
+    API --> S3
+    API --> REDIS
+```
+
+### Architecture Decision: **Hybrid — Backend Microservices + Lightweight Client Rendering**
+
+| Concern | Decision | Rationale |
+|---|---|---|
+| G-code Generation | **Server-side** (containerized Python) | IP protection; CPU-bound; results cached in S3 |
+| Nesting Algorithm | **Server-side** (containerized Python) | IP-critical MaxRects + proprietary scoring |
+| 3D Visualization | **Client-side** (Three.js in browser) | GPU-accelerated; no IP exposure; low latency |
+| G-code Parsing | **Client-side** (Web Worker) | Regex-only; not IP-sensitive; reduces server load |
+| PDF Generation | **Server-side** (containerized Python) | ReportLab stays in Python; files served via S3 |
+
+---
+
+## 3. Core Engine Integration & IP Protection
+
+### 3.1 WASM vs. Backend Microservices — Definitive Comparison
+
+| Criterion | WebAssembly (Client) | Backend Microservices (Server) | **Verdict** |
+|---|---|---|---|
+| **IP Protection** | ❌ WASM is decompilable; algorithms exposed in browser DevTools | ✅ Code never leaves your servers | **Server wins** |
+| **Performance** | ⚠️ Must rewrite Python → Rust/C++; WASM is single-threaded | ✅ Scale horizontally with worker pods | **Server wins** |
+| **Porting Effort** | ❌ Complete rewrite of 2400 lines + ReportLab + Pandas | ✅ Python stays Python; wrap with FastAPI | **Server wins** |
+| **Latency** | ✅ Zero network round-trip | ⚠️ 1-5s for generation + download | **Client wins** |
+| **Offline Support** | ✅ Works offline | ❌ Requires connection | **Client wins** |
+| **Scalability Cost** | ✅ User's device = free compute | ⚠️ You pay for server compute | **Client wins** |
+
+> [!IMPORTANT]
+> **Recommendation: Server-side execution via containerized FastAPI microservices.**
+>
+> Your algorithms (MaxRects BSSF, chip-load tables, 4-op G-code pipeline) are your core IP. WASM would expose them to anyone with browser DevTools. Additionally, your codebase has Python-only dependencies (ReportLab for PDFs, Pandas for Excel) that have no WASM equivalents — a rewrite would take 3-6 months before you could even start the SaaS.
+
+### 3.2 IP Protection Strategy
+
+```mermaid
+graph LR
+    A[User Browser] -->|"JSON: parts + params"| B[API Gateway]
+    B -->|Rate-limited / Authenticated| C[G-code Worker]
+    C -->|"Runs proprietary Python"| D[Generated .nc file]
+    D -->|Stored in| E[S3 with signed URLs]
+    E -->|"Temporary link (1hr expiry)"| A
+```
+
+**Multi-layer protection:**
+
+| Layer | Mechanism |
+|---|---|
+| **Network** | API Gateway with JWT auth; no unauthenticated access to generation endpoints |
+| **Code** | Proprietary Python runs inside private Docker containers; no source code shipped to client |
+| **Output** | G-code files stored in S3 with time-limited signed URLs (1-hour expiry) |
+| **Rate Limiting** | Per-user quotas: Free = 5 gen/day, Pro = unlimited, Enterprise = custom |
+| **Obfuscation** | Optional: PyArmor or Cython compilation of [.py](file:///home/victor/Documents/Work/SuperShaker/SuperShaker_v5.4.2.py) → `.so` inside Docker images |
+| **Legal** | Terms of Service prohibiting reverse-engineering; DMCA takedown procedures |
+
+### 3.3 Refactoring for Server Deployment
+
+Your current code is tightly coupled to Tkinter (`tk.StringVar`, `messagebox`, `filedialog`). The refactoring strategy:
+
+```
+Current: AdvancedNestingGUI (monolith, 2439 lines)
+    ├── UI layer (Tkinter) ─────────────── DISCARD for web
+    ├── Core algorithms ─────────────────── EXTRACT as library
+    │   ├── MaxRectsPacker ──────────────── nesting_engine.py
+    │   ├── calc_t6_params ──────────────── chipload_calculator.py
+    │   ├── generate_gcode (4 ops) ──────── gcode_generator.py
+    │   ├── do_nesting ──────────────────── nesting_engine.py
+    │   └── _sanitize_gcode ─────────────── gcode_generator.py
+    └── Export (PDF) ────────────────────── pdf_export.py
+```
+
+**Step 1:** Extract a pure-Python library (`supershaker_core/`) with zero Tkinter dependencies:
+
+```
+supershaker_core/
+├── __init__.py
+├── nesting.py          # MaxRectsPacker + do_nesting logic
+├── chipload.py         # calc_t6_params (static method → pure function)
+├── gcode_generator.py  # generate_gcode (accepts dicts, returns list[str])
+├── pdf_export.py       # PDF label + cutting map generation
+├── models.py           # Pydantic models: Part, Sheet, ToolConfig, NestingResult
+└── sanitizer.py        # _sanitize_gcode
+```
+
+**Step 2:** Wrap with FastAPI endpoints that accept JSON and return files/JSON.
+
+---
+
+## 4. High-Performance Frontend & 3D Visualization
+
+### 4.1 Frontend Stack
+
+| Layer | Technology | Justification |
+|---|---|---|
+| **Framework** | **React 18+** with TypeScript | Largest ecosystem; best for complex state; huge hiring pool |
+| **State Management** | **Zustand** | Lightweight; no boilerplate; perfect for CAM state (tool profiles, sheet configs, project trees) |
+| **UI Components** | **Radix UI** + custom CSS | Accessible primitives, no design tax; CAM UIs are highly custom |
+| **Form Handling** | **React Hook Form** + Zod | Type-safe validation for machine configs, numeric params |
+| **Data Fetching** | **TanStack Query** | Caching, background refetch, optimistic updates for projects |
+| **File Handling** | **tus** (resumable uploads) | Large CAD files need resumable upload support |
+| **Build Tool** | **Vite** | Fast HMR; native ESM; optimal for iterating on complex UI |
+
+### 4.2 3D Visualization Architecture — Three.js
+
+> [!CAUTION]
+> Your current Plotly Scatter3D approach **will not scale** to millions of G-code lines in a browser. Plotly creates individual DOM-backed traces — at 1M points, the browser will freeze. You need raw WebGL via Three.js.
+
+**Architecture for handling large toolpaths:**
+
+```mermaid
+graph TB
+    subgraph "Main Thread"
+        REACT[React Component]
+        THREE[Three.js Scene]
+        CONTROLS[OrbitControls]
+        LOD[LOD Manager]
+    end
+
+    subgraph "Web Worker"
+        PARSER[G-code Parser Worker]
+        SIMPLIFY[Douglas-Peucker Simplifier]
+        BUFFER[Float32Array Builder]
+    end
+
+    subgraph "GPU"
+        VBO[Vertex Buffer Objects]
+        SHADER[Custom Line Shader]
+    end
+
+    REACT -->|"File ArrayBuffer"| PARSER
+    PARSER -->|"Parsed segments"| SIMPLIFY
+    SIMPLIFY -->|"Multi-LOD buffers"| BUFFER
+    BUFFER -->|"transferable"| THREE
+    THREE --> LOD
+    LOD --> VBO
+    VBO --> SHADER
+    CONTROLS --> THREE
+```
+
+**Key techniques for millions of lines:**
+
+| Technique | Purpose | Implementation |
+|---|---|---|
+| **Web Worker parsing** | Keep main thread responsive during G-code parse | `new Worker()` with `Transferable` ArrayBuffers |
+| **Instanced BufferGeometry** | Single draw call for all lines of same type | `THREE.InstancedBufferGeometry` with per-instance color |
+| **Level of Detail (LOD)** | Render simplified geometry when zoomed out | Douglas-Peucker algorithm at 3 levels (full / 50% / 10%) |
+| **Frustum Culling** | Skip off-screen geometry | Built into Three.js; split toolpath into spatial chunks |
+| **Streaming parse** | Start rendering before file fully loads | Parse in 64KB chunks, append to BufferGeometry |
+| **GPU-side lines** | Fat lines that don't alias | `THREE.Line2` from `three/examples` (screen-space width) |
+
+**Performance targets:**
+
+| Metric | Target | Strategy |
+|---|---|---|
+| 1M G-code lines | < 2s parse + render | Web Worker + streaming BufferGeometry |
+| 5M G-code lines | < 8s parse, 60fps orbit | LOD + frustum culling + chunked geometry |
+| 10M+ G-code lines | < 15s parse, 30fps orbit | Progressive streaming + aggressive LOD |
+
+### 4.3 Frontend Component Architecture
+
+```
+src/
+├── app/
+│   ├── layout.tsx
+│   └── routes/
+│       ├── dashboard/           # Project list, recent files
+│       ├── editor/              # Main CAM workspace
+│       │   ├── EditorLayout.tsx
+│       │   ├── ToolPanel/       # T2/T3/T5/T6 config (mirrors your right panel)
+│       │   ├── NestingPanel/    # Sheet params, part list, nesting preview
+│       │   ├── GcodeViewer/     # Three.js 3D viewport
+│       │   └── StatusBar/       # KPI bar (ORDER/YIELD/SHEETS/PARTS)
+│       ├── settings/            # Machine profiles, tool libraries
+│       └── billing/             # Subscription management
+├── core/
+│   ├── api/                     # TanStack Query hooks for backend calls
+│   ├── stores/                  # Zustand stores (project, tools, nesting)
+│   ├── workers/                 # Web Workers (gcode-parser.worker.ts)
+│   └── three/                   # Three.js scene setup, LOD, shaders
+└── components/
+    ├── ui/                      # Radix-based primitives
+    └── cad/                     # CAM-specific: PartTable, SheetPreview, ChipLoadCalc
+```
+
+---
+
+## 5. Backend Architecture & Data Management
+
+### 5.1 Architecture: Modular Monolith → Microservices
+
+> [!TIP]
+> **Start with a Modular Monolith**, not microservices. At < 1,000 users, the operational overhead of K8s + service mesh + distributed tracing will slow you down. Extract services only when you have a scaling bottleneck.
+
+**Phase 1–2 (PoC → MVP): Modular Monolith**
+
+```
+supershaker-api/                    # Single FastAPI application
+├── app/
+│   ├── main.py                     # FastAPI app + CORS + middleware
+│   ├── auth/                       # Supabase JWT verification
+│   ├── projects/                   # CRUD for projects, parts, sheets
+│   ├── nesting/                    # Endpoint: POST /nest → calls core lib
+│   ├── gcode/                      # Endpoint: POST /generate → queues job
+│   ├── pdf/                        # Endpoint: POST /export/labels, /export/map
+│   ├── billing/                    # Stripe webhook handlers
+│   ├── admin/                      # Admin dashboard APIs
+│   └── shared/
+│       ├── db.py                   # SQLAlchemy + async PostgreSQL
+│       ├── storage.py              # S3/R2 file operations
+│       └── queue.py                # Redis queue (ARQ or Celery)
+├── supershaker_core/               # Extracted pure-Python engine
+│   ├── nesting.py
+│   ├── chipload.py
+│   ├── gcode_generator.py
+│   ├── pdf_export.py
+│   └── models.py
+└── workers/
+    └── gcode_worker.py             # Async worker: picks jobs from queue
+```
+
+**Phase 3 (Scale): Extract heavy services**
+
+```
+Services to extract when bottlenecked:
+  1. gcode-worker  → separate deployment, horizontally scaled
+  2. pdf-worker    → separate deployment (ReportLab is CPU-heavy)
+  3. nesting-api   → separate if nesting becomes a hot path
+```
+
+### 5.2 Technology Stack — Backend
+
+| Component | Technology | Justification |
+|---|---|---|
+| **Language** | **Python 3.12+** | Your core is Python; zero rewrite needed; FastAPI is best-in-class |
+| **Framework** | **FastAPI** | Async, auto-docs (OpenAPI), Pydantic validation, WebSocket support |
+| **Task Queue** | **ARQ** (Redis-backed) | Lightweight, async-native, Python-first; simpler than Celery for < 50 workers |
+| **Cache** | **Redis** | Session cache, rate limiting, queue backend, nesting result cache |
+| **ASGI Server** | **Uvicorn** + Gunicorn | Production-grade; multi-worker process model |
+
+### 5.3 Database Schema (PostgreSQL)
+
+```mermaid
+erDiagram
+    USERS ||--o{ PROJECTS : owns
+    USERS ||--o{ MACHINE_PROFILES : has
+    USERS ||--|| SUBSCRIPTIONS : has
+    PROJECTS ||--o{ PARTS : contains
+    PROJECTS ||--o{ NESTING_RESULTS : has
+    PROJECTS ||--o{ GCODE_FILES : generates
+    MACHINE_PROFILES ||--o{ TOOL_CONFIGS : has
+
+    USERS {
+        uuid id PK
+        string email
+        string name
+        string org_id FK
+        enum role "admin | member | viewer"
+        timestamp created_at
+    }
+
+    PROJECTS {
+        uuid id PK
+        uuid user_id FK
+        string name
+        string order_number
+        jsonb sheet_config "width, height, thickness, margin"
+        jsonb facade_params "frame_w, pocket_depth, chamfer..."
+        enum status "draft | nested | generated"
+        timestamp updated_at
+    }
+
+    PARTS {
+        uuid id PK
+        uuid project_id FK
+        float width_mm
+        float height_mm
+        int quantity
+        enum type "shaker | shaker_step | slab"
+    }
+
+    NESTING_RESULTS {
+        uuid id PK
+        uuid project_id FK
+        jsonb sheets "array of sheet placements"
+        float yield_percentage
+        int total_sheets
+        timestamp created_at
+    }
+
+    GCODE_FILES {
+        uuid id PK
+        uuid project_id FK
+        int sheet_number
+        string s3_key
+        bigint file_size_bytes
+        timestamp created_at
+        timestamp expires_at
+    }
+
+    MACHINE_PROFILES {
+        uuid id PK
+        uuid user_id FK
+        string name
+        jsonb defaults "sheet size, margins, feeds"
+    }
+
+    TOOL_CONFIGS {
+        uuid id PK
+        uuid profile_id FK
+        string tool_number "T2, T3, T5, T6"
+        float diameter_mm
+        int spindle_rpm
+        int feed_mm_min
+        string tool_type "PCD | TCT"
+        int teeth
+    }
+
+    SUBSCRIPTIONS {
+        uuid id PK
+        uuid user_id FK
+        enum tier "free | pro | enterprise"
+        string stripe_subscription_id
+        timestamp current_period_end
+    }
+```
+
+### 5.4 Storage Strategy
+
+| Data Type | Storage | Access Pattern |
+|---|---|---|
+| User data, projects, parts | **PostgreSQL** | CRUD, queries, joins |
+| Machine profiles, tool libraries | **PostgreSQL** (JSONB) | User-scoped, low volume |
+| Nesting results (placement coordinates) | **PostgreSQL** (JSONB) | Read on project load |
+| Generated G-code files (.nc) | **S3 / Cloudflare R2** | Write once, download N times, expire after 30 days |
+| Generated PDFs (labels, maps) | **S3 / Cloudflare R2** | Same as G-code |
+| Uploaded Excel files | **S3 / Cloudflare R2** | Parse on upload, store for audit |
+| Session cache, rate limits | **Redis** | High-frequency reads, TTL-based expiry |
+
+---
+
+## 6. SaaS Infrastructure, Auth & Monetization
+
+### 6.1 Authentication & Multi-Tenancy
+
+**Recommendation: Supabase Auth** (built on GoTrue/PostgreSQL)
+
+| Feature | Implementation |
+|---|---|
+| **Sign-up / Login** | Email/password + Google OAuth + Microsoft OAuth |
+| **JWT Tokens** | Supabase issues JWTs; FastAPI validates with `python-jose` |
+| **Multi-tenancy** | Organization model: users belong to orgs; Row-Level Security (RLS) in PostgreSQL |
+| **RBAC** | 3 roles: `admin` (manage org, billing), `member` (full CAM access), `viewer` (read-only) |
+
+```python
+# FastAPI dependency for RBAC
+async def require_role(role: str):
+    async def checker(user: User = Depends(get_current_user)):
+        if user.role not in ROLE_HIERARCHY[role]:
+            raise HTTPException(403, "Insufficient permissions")
+        return user
+    return checker
+
+@router.post("/generate")
+async def generate_gcode(
+    project_id: UUID,
+    user: User = Depends(require_role("member")),
+    billing: BillingService = Depends()
+):
+    await billing.check_quota(user, "gcode_generation")
+    # ... queue generation job
+```
+
+### 6.2 Billing & Tier Architecture
+
+**Payment Processor: Stripe** (better API, better docs, global coverage)
+
+| Feature | Free | Pro ($49/mo) | Enterprise (Custom) |
+|---|---|---|---|
+| G-code generations | 5/day | Unlimited | Unlimited |
+| Max parts per project | 20 | 500 | Unlimited |
+| 3D Viewer | ✅ Basic (100K lines) | ✅ Full (10M+ lines) | ✅ Full |
+| Machine profiles | 1 | 10 | Unlimited |
+| PDF export | ❌ | ✅ | ✅ |
+| Nesting strategies | Snake only | Snake + Spiral + Climb | All + custom |
+| 2nd pocket (Shaker Step) | ❌ | ✅ | ✅ |
+| Team members | 1 | 5 | Unlimited |
+| API access | ❌ | ❌ | ✅ REST API |
+| Support | Community | Email (24h) | Dedicated + SLA |
+| File retention | 7 days | 90 days | 1 year |
+
+**Stripe integration architecture:**
+
+```mermaid
+sequenceDiagram
+    participant U as User Browser
+    participant API as FastAPI
+    participant S as Stripe
+
+    U->>API: POST /billing/checkout (tier=pro)
+    API->>S: Create Checkout Session
+    S-->>API: Session URL
+    API-->>U: Redirect to Stripe Checkout
+    U->>S: Complete payment
+    S->>API: Webhook: checkout.session.completed
+    API->>API: Update subscription in DB
+    API->>API: Unlock Pro features
+
+    Note over S,API: Recurring billing handled by Stripe
+    S->>API: Webhook: invoice.paid (monthly)
+    API->>API: Extend subscription period
+    S->>API: Webhook: customer.subscription.deleted
+    API->>API: Downgrade to Free tier
+```
+
+### 6.3 Feature Gating Implementation
+
+```python
+# middleware/billing.py
+TIER_LIMITS = {
+    "free":       {"gcode_per_day": 5,  "max_parts": 20,  "strategies": ["Snake"]},
+    "pro":        {"gcode_per_day": -1, "max_parts": 500, "strategies": ["Snake", "Spiral", "Climb (CCW)"]},
+    "enterprise": {"gcode_per_day": -1, "max_parts": -1,  "strategies": ["Snake", "Spiral", "Climb (CCW)"]},
+}
+
+async def check_quota(user: User, action: str):
+    limits = TIER_LIMITS[user.subscription.tier]
+    if action == "gcode_generation":
+        daily = limits["gcode_per_day"]
+        if daily > 0:
+            count = await get_daily_gen_count(user.id)
+            if count >= daily:
+                raise HTTPException(429, f"Daily limit reached ({daily}). Upgrade to Pro.")
+```
+
+---
+
+## 7. Cloud Hosting & DevOps Strategy
+
+### 7.1 Cloud Provider: **AWS** (primary) or **Cloudflare Workers + R2** (budget alternative)
+
+**AWS Stack (recommended for Enterprise path):**
+
+| Service | Purpose | Est. Monthly Cost (MVP) |
+|---|---|---|
+| **ECS Fargate** | Run FastAPI + workers in containers | ~$50–100 |
+| **RDS PostgreSQL** (db.t4g.micro) | Primary database | ~$15 |
+| **ElastiCache Redis** (t4g.micro) | Queue + cache | ~$15 |
+| **S3** | G-code, PDF, upload storage | ~$5 |
+| **CloudFront** | CDN for frontend SPA + assets | ~$10 |
+| **ALB** | Load balancer for API | ~$20 |
+| **Route 53** | DNS | ~$1 |
+| **ACM** | Free SSL certificates | $0 |
+| **Total** | | **~$115–165/mo** |
+
+**Budget Alternative (< 50 users):**
+
+| Service | Purpose | Cost |
+|---|---|---|
+| **Railway.app** or **Fly.io** | FastAPI + workers | $20–40/mo |
+| **Supabase** (free tier) | PostgreSQL + Auth + Realtime | $0–25/mo |
+| **Cloudflare R2** | Object storage (no egress fees!) | ~$1/mo |
+| **Vercel** | React frontend hosting | $0–20/mo |
+| **Upstash Redis** | Serverless Redis | $0–10/mo |
+| **Total** | | **~$20–95/mo** |
+
+### 7.2 CI/CD Pipeline
+
+```mermaid
+graph LR
+    subgraph "Developer"
+        DEV[Git Push]
+    end
+
+    subgraph "GitHub Actions"
+        LINT[Lint + Type Check]
+        TEST[Unit Tests - pytest]
+        BUILD_API[Build API Docker Image]
+        BUILD_FE[Build React SPA]
+        SEC[Trivy Security Scan]
+    end
+
+    subgraph "Staging"
+        STAGE_DEPLOY[Deploy to Staging ECS]
+        STAGE_TEST[Integration Tests]
+    end
+
+    subgraph "Production"
+        PROD_DEPLOY[Blue-Green Deploy to Prod ECS]
+    end
+
+    DEV --> LINT --> TEST --> BUILD_API --> SEC --> STAGE_DEPLOY --> STAGE_TEST --> PROD_DEPLOY
+    DEV --> BUILD_FE --> STAGE_DEPLOY
+```
+
+**Pipeline stages:**
+
+| Stage | Tools | What it does |
+|---|---|---|
+| **Lint** | `ruff` (Python), `eslint` + `tsc` (TypeScript) | Code quality gates |
+| **Test** | `pytest` with coverage > 80% | Unit tests for core algorithms (nesting, G-code, chipload) |
+| **Build** | Docker (multi-stage) | `python:3.12-slim` base; < 200MB image |
+| **Security** | Trivy container scan | CVE scanning on every push |
+| **Staging** | Auto-deploy on [main](file:///home/victor/Documents/Work/SuperShaker/G-code%20Visualizer/gcode_viewer_gui.py#146-178) merge | Full environment with test DB |
+| **Production** | Manual approve → blue-green deploy | Zero-downtime via ECS rolling update |
+
+### 7.3 Handling Heavy Computational Loads
+
+```mermaid
+graph TB
+    API[FastAPI API] -->|"POST /generate"| Q[Redis Queue - ARQ]
+    Q --> W1[Worker 1]
+    Q --> W2[Worker 2]
+    Q --> W3[Worker N...]
+
+    W1 -->|".nc file"| S3[S3 Storage]
+    W1 -->|"Job complete"| WS[WebSocket Notification]
+    WS -->|"File ready!"| CLIENT[Browser]
+    CLIENT -->|"GET signed URL"| S3
+
+    subgraph "Auto-Scaling"
+        ASG[ECS Auto Scaling]
+        ASG -->|"Queue depth > 10"| W3
+    end
+    Q --> ASG
+```
+
+| Concern | Strategy |
+|---|---|
+| **Job queuing** | ARQ (async Redis queue): submit G-code gen as background job; return job ID immediately |
+| **Progress tracking** | WebSocket connection: worker publishes progress (parsing→OP1→OP2→OP3→OP4→done) |
+| **Auto-scaling** | ECS auto-scaling based on Redis queue depth; scale workers 1→10 during peak |
+| **Timeouts** | 5-minute max per generation job; user notified on timeout |
+| **Caching** | Hash(project_params) → if identical inputs, return cached S3 file |
+| **GPU** (future) | Not needed now; your algorithms are CPU-bound. Only relevant if you add CAD rendering or AI-assisted nesting later |
+
+---
+
+## 8. Definitive Tech Stack
+
+| Layer | Technology | Version | Why |
+|---|---|---|---|
+| **Frontend** | React + TypeScript | 18+ | Complex state, huge ecosystem |
+| **3D Engine** | Three.js | r160+ | WebGL toolpath rendering, LOD, chunking |
+| **State** | Zustand | 4+ | Lightweight, no boilerplate |
+| **Styling** | CSS Modules + Radix UI | — | CAM UIs are too custom for Tailwind |
+| **Build** | Vite | 5+ | Fast dev, optimal bundles |
+| **Backend** | FastAPI (Python) | 0.110+ | Async, auto-docs, Pydantic |
+| **Task Queue** | ARQ | 0.26+ | Async Redis queue, lightweight |
+| **Database** | PostgreSQL | 16 | JSONB for flexible configs |
+| **Cache/Queue** | Redis | 7+ | Session, rate-limit, queue |
+| **Object Storage** | S3 or Cloudflare R2 | — | G-code, PDFs, uploads |
+| **Auth** | Supabase Auth | — | JWT, OAuth, RLS, free tier |
+| **Payments** | Stripe | — | Subscriptions, webhooks |
+| **CDN** | CloudFront or Cloudflare | — | SPA + asset delivery |
+| **Containers** | Docker + ECS Fargate | — | No server management |
+| **CI/CD** | GitHub Actions | — | Free for public, cheap for private |
+| **Monitoring** | Sentry + Prometheus + Grafana | — | Errors, metrics, dashboards |
+
+---
+
+## 9. Phased Implementation Roadmap
+
+### Phase 1: Proof of Concept (6–8 weeks)
+
+**Goal:** Validate that the core engine works in a web context end-to-end.
+
+| Week | Deliverable | Details |
+|---|---|---|
+| 1–2 | **Core extraction** | Refactor [SuperShaker_v5.4.2.py](file:///home/victor/Documents/Work/SuperShaker/SuperShaker_v5.4.2.py) into `supershaker_core/` library; remove all Tkinter deps; add Pydantic models |
+| 3 | **FastAPI wrapper** | Create `/nest`, `/generate`, `/chipload` endpoints; input = JSON, output = JSON or file |
+| 4 | **Unit tests** | pytest suite for nesting, G-code gen, chipload calc; compare outputs to desktop app |
+| 5–6 | **Basic React UI** | Part table (CRUD), sheet config form, "Generate" button, file download |
+| 7 | **Three.js viewer** | Port [gcode_viewer_gui.py](file:///home/victor/Documents/Work/SuperShaker/G-code%20Visualizer/gcode_viewer_gui.py) to Three.js with Web Worker parsing |
+| 8 | **Integration** | Connect frontend ↔ API; deploy to Railway/Fly.io; demo to stakeholders |
+
+**PoC Success Criteria:**
+- User can input parts, run nesting, generate G-code, and download `.nc` files via browser
+- 3D viewer renders 100K-line G-code files at 60fps
+- G-code output is **byte-identical** to desktop app for same inputs
+
+### Phase 2: Minimum Viable Product (8–12 weeks)
+
+**Goal:** A product real users can sign up for and pay for.
+
+| Week | Deliverable | Details |
+|---|---|---|
+| 1–2 | **Auth** | Supabase Auth integration; login/signup, JWT middleware |
+| 3–4 | **Database** | PostgreSQL schema; project CRUD; machine profiles; tool configs |
+| 5–6 | **Billing** | Stripe integration; Free/Pro tiers; feature gating; checkout flow |
+| 7–8 | **PDF export** | Labels + cutting map generation; S3 storage; download links |
+| 9 | **Job queue** | ARQ workers for async G-code generation; WebSocket progress |
+| 10 | **Excel import** | File upload + parsing via Pandas; maps to project parts |
+| 11 | **Polishing** | Error handling, loading states, responsive design, onboarding flow |
+| 12 | **Launch prep** | Staging env, monitoring (Sentry), docs, landing page |
+
+**MVP Success Criteria:**
+- 10 beta users can complete full workflow: import Excel → nest → generate → download
+- Stripe billing works end-to-end with Free/Pro tiers
+- 99.9% uptime over 2-week beta period
+
+### Phase 3: Scale & Polish (12–16 weeks)
+
+| Week | Deliverable | Details |
+|---|---|---|
+| 1–3 | **Enterprise features** | Team management (orgs), RBAC (`admin`/`member`/`viewer`), SSO (SAML) |
+| 4–5 | **Performance** | 3D viewer LOD for 5M+ lines; nesting result caching; CDN optimization |
+| 6–7 | **Advanced CAM** | Shaker Step full support; custom strategies; multi-sheet batch generation |
+| 8–9 | **API for Enterprise** | REST API with API keys; rate limiting; OpenAPI docs for integrators |
+| 10–11 | **Analytics** | Usage dashboards; per-user metrics; conversion funnels |
+| 12–13 | **Collaboration** | Shared projects; comment threads on nesting layouts; version history |
+| 14–16 | **Internationalization** | i18n (EN/RU/DE); localized units (mm/inches); currency support |
+
+---
+
+## 10. Top 3 Technical Bottlenecks & Mitigations
+
+### Bottleneck #1: Core Engine Refactoring (Tkinter Decoupling)
+
+> **Risk Level: HIGH** — This blocks everything else.
+
+**Problem:** Your 2,439-line [SuperShaker_v5.4.2.py](file:///home/victor/Documents/Work/SuperShaker/SuperShaker_v5.4.2.py) reads parameters from `tk.StringVar` objects, calls `messagebox` for errors, and uses `filedialog` for I/O. The G-code generator is a single 800-line method with deeply nested control flow.
+
+**Mitigation:**
+
+| Step | Action | Time |
+|---|---|---|
+| 1 | Create Pydantic models for all inputs (`SheetConfig`, `FacadeParams`, `ToolConfig`, `Part`) | 2 days |
+| 2 | Extract [MaxRectsPacker](file:///home/victor/Documents/Work/SuperShaker/SuperShaker_v5.4.2.py#14-93) → `nesting.py` (already a clean class, minimal changes) | 1 day |
+| 3 | Extract [calc_t6_params](file:///home/victor/Documents/Work/SuperShaker/SuperShaker_v5.4.2.py#229-345) → `chipload.py` (already `@staticmethod`, trivial) | 0.5 days |
+| 4 | Extract [generate_gcode](file:///home/victor/Documents/Work/SuperShaker/SuperShaker_v5.4.2.py#1643-2434) → `gcode_generator.py` (hardest: replace all `self._fval()` with function params) | 5 days |
+| 5 | Extract [do_nesting](file:///home/victor/Documents/Work/SuperShaker/SuperShaker_v5.4.2.py#1151-1239) → pass flat part list + config, return `NestingResult` | 2 days |
+| 6 | Write comparison tests: run desktop app + new lib on same inputs, assert identical output | 3 days |
+
+> [!WARNING]
+> **Do not optimize or refactor the algorithms during extraction.** Port them character-for-character. Optimization comes later. Every divergence from the original is a potential bug in G-code output — and bad G-code can crash a CNC machine.
+
+### Bottleneck #2: 3D Viewer Performance at Scale
+
+> **Risk Level: MEDIUM** — Impacts Pro/Enterprise user experience.
+
+**Problem:** A single facade sheet can generate 50K–200K lines of G-code. A full production run (10+ sheets) easily hits 1M+ lines. Rendering this in a browser without frame drops requires careful engineering.
+
+**Mitigation:**
+
+| Technique | Impact | Implementation Effort |
+|---|---|---|
+| Web Worker G-code parsing | Prevents UI freeze during parse | Low (standard Web Worker API) |
+| `Float32Array` + `Transferable` | Zero-copy transfer from worker → main thread | Low |
+| `THREE.BufferGeometry` with `THREE.LineSegments` | Single draw call per tool | Medium |
+| Spatial chunking (octree) | Only render visible toolpath chunks | Medium |
+| LOD with Douglas-Peucker simplification | 3 detail levels based on camera distance | Medium |
+| WebGPU fallback (future) | 2-5x performance over WebGL for complex scenes | High (experimental) |
+
+**Performance test plan:** Generate a synthetic 5M-line G-code file; benchmark parse time, first-paint time, and orbit FPS on mid-range hardware (Intel i5 + integrated GPU).
+
+### Bottleneck #3: Billing-Gated Feature Enforcement
+
+> **Risk Level: MEDIUM** — Revenue leakage if implemented incorrectly.
+
+**Problem:** Feature gating in a SaaS with a thick client is tricky. Users could:
+- Inspect network requests and call API endpoints directly (bypassing UI gate)
+- Cache Pro-tier responses and replay them after downgrade
+- Share accounts across team members
+
+**Mitigation:**
+
+| Vector | Defense |
+|---|---|
+| **API bypass** | All feature gates enforced server-side (not just UI); middleware checks tier before executing |
+| **Cached responses** | G-code files in S3 have 1-hour signed URL expiry; nesting results are user-scoped |
+| **Account sharing** | Concurrent session limit: Free = 1, Pro = 3, Enterprise = unlimited; enforce via Redis session tracking |
+| **Tier downgrade** | Cron job: after downgrade, don't delete data but gate access; "upgrade to view" prompt |
+| **Webhook reliability** | Stripe webhook handler with idempotency keys + dead-letter queue for failed events |
+
+---
+
+> [!NOTE]
+> **Next Steps:** After reviewing this blueprint, the recommended first action is to begin Phase 1, Week 1–2: extracting the core engine into a standalone Python library with comprehensive unit tests. This de-risks everything else and can be done in parallel with frontend design work.
