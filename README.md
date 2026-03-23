@@ -108,5 +108,15 @@ To start the full prototype locally (both frontend and backend simultaneously), 
 - **PDF Label Export**: Automated generation of Avery-style barcode labels (using ReportLab) denoting part IDs and edge banding logic.
 - **Persistent Database**: Transitioning the temporary in-memory JSON arrays into a PostgreSQL or SQLite backend to save historic jobs and tooling configurations across sessions.
 - **Multi-sheet Sub-jobs**: Splitting massive architectural jobs into sequentially numbered `.gcode` sheets for extended routing logic.
+---
 
-*Proprietary nesting and toolpath configuration software. All rights reserved.*
+## ⚖️ License & Terms of Use
+
+**PROPRIETARY AND CONFIDENTIAL**
+
+This software is **strictly proprietary** and is **NOT FREE** to use in either commercial or non-commercial instances. 
+
+- You may not use, copy, modify, merge, publish, distribute, sublicense, or sell copies of this software without explicit, written permission from the copyright holder.
+- Unauthorized reproduction or distribution of this program, or any portion of it, may result in severe civil and criminal penalties, and will be prosecuted to the maximum extent possible under law.
+
+*All rights reserved.*
