@@ -1,58 +1,71 @@
 /**
- * App.jsx — Root application component
- * ═══════════════════════════════════════════════════════════════════════
- * Handles mock authentication state and page routing.
- * When not logged in → shows LoginScreen.
- * When logged in → shows Sidebar + routed page content.
+ * App.jsx — SuperShaker SaaS Application Root
+ * Two-panel layout: SuperShakerPanel (left) + GcodeViewerPanel (right)
  */
-import React, { useState } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
-import Sidebar from "./components/Sidebar.jsx";
+import React, { useState, useCallback } from "react";
 import LoginScreen from "./components/LoginScreen.jsx";
-import Dashboard from "./components/Dashboard.jsx";
-import ToolpathViewer from "./components/ToolpathViewer.jsx";
+import Sidebar from "./components/Sidebar.jsx";
+import SuperShakerPanel from "./components/SuperShakerPanel.jsx";
+import GcodeViewerPanel from "./components/GcodeViewerPanel.jsx";
 
 export default function App() {
-  // ── Mock auth state ─────────────────────────────────────────────
-  // In production, replace with Supabase Auth / JWT token validation.
-  // TODO: INTEGRATION POINT — Replace with real auth provider
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
 
-  /**
-   * Mock login handler. Accepts any credentials.
-   * Replace with: supabase.auth.signInWithPassword({email, password})
-   */
-  const handleLogin = (email, password) => {
-    setUser({ email, name: email.split("@")[0] });
-    setIsAuthenticated(true);
-  };
+  // G-code state — flows from SuperShaker → Viewer
+  const [gcodeData, setGcodeData] = useState(null);
+  const [gcodeText, setGcodeText] = useState(null);
+  const [gcodeStats, setGcodeStats] = useState(null);
+  const [allSheets, setAllSheets] = useState(null);
+  const [nestingResult, setNestingResult] = useState(null);
 
-  const handleLogout = () => {
+  const handleLogin = useCallback((u) => setUser(u), []);
+  const handleLogout = useCallback(() => {
     setUser(null);
-    setIsAuthenticated(false);
-  };
+    setGcodeData(null);
+    setGcodeText(null);
+    setAllSheets(null);
+    setNestingResult(null);
+  }, []);
 
-  // ── Not authenticated → Login screen ────────────────────────────
-  if (!isAuthenticated) {
-    return <LoginScreen onLogin={handleLogin} />;
-  }
+  const handleGcodeGenerated = useCallback(({ gcodeText, gcodeData, stats, allSheets }) => {
+    setGcodeData(gcodeData);
+    setGcodeText(gcodeText);
+    setGcodeStats(stats);
+    setAllSheets(allSheets);
+  }, []);
 
-  // ── Authenticated → Dashboard layout ────────────────────────────
+  const handleNestingDone = useCallback((result) => {
+    setNestingResult(result);
+    // Clear previous G-code when nesting changes
+    setGcodeData(null);
+    setGcodeText(null);
+    setAllSheets(null);
+  }, []);
+
+  if (!user) return <LoginScreen onLogin={handleLogin} />;
+
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* Left sidebar navigation */}
+    <div className="flex h-screen overflow-hidden bg-cnc-bg">
       <Sidebar user={user} onLogout={handleLogout} />
-
-      {/* Main content area with page routing */}
-      <main className="flex-1 overflow-y-auto bg-cnc-bg">
-        <Routes>
-          <Route path="/" element={<Dashboard user={user} />} />
-          <Route path="/viewer" element={<ToolpathViewer />} />
-          {/* Redirect unknown routes to dashboard */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </main>
+      <div className="flex-1 flex min-w-0">
+        {/* Left: SuperShaker Tool Panel */}
+        <div className="w-[380px] min-w-[340px] max-w-[440px] flex-shrink-0
+                        border-r border-cnc-border">
+          <SuperShakerPanel
+            onGcodeGenerated={handleGcodeGenerated}
+            onNestingDone={handleNestingDone}
+          />
+        </div>
+        {/* Right: G-code 3D Viewer */}
+        <div className="flex-1 min-w-0">
+          <GcodeViewerPanel
+            gcodeData={gcodeData}
+            gcodeText={gcodeText}
+            stats={gcodeStats}
+            allSheets={allSheets}
+          />
+        </div>
+      </div>
     </div>
   );
 }

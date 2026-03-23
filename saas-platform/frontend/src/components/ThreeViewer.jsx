@@ -112,35 +112,49 @@ function MachineBed({ width, height }) {
  */
 function GcodeLines({ gcodeData }) {
   // Build Float32Array geometry from segment arrays
-  const { rapidGeom, cutGeom } = useMemo(() => {
-    if (!gcodeData) return { rapidGeom: null, cutGeom: null };
+  const geometries = useMemo(() => {
+    if (!gcodeData) return null;
 
+    // Rapid lines
     const rapidVerts = new Float32Array(gcodeData.rapid.length * 6);
     gcodeData.rapid.forEach((seg, i) => {
       rapidVerts.set(seg, i * 6);
     });
+    const rapidGeom = new THREE.BufferGeometry();
+    if (gcodeData.rapid.length > 0) {
+      rapidGeom.setAttribute("position", new THREE.BufferAttribute(rapidVerts, 3));
+    }
 
-    const cutVerts = new Float32Array(gcodeData.cut.length * 6);
-    gcodeData.cut.forEach((seg, i) => {
-      cutVerts.set(seg, i * 6);
-    });
+    // Cut lines by group
+    const cuts = {};
+    if (gcodeData.cutByGroup) {
+      for (const [group, segments] of Object.entries(gcodeData.cutByGroup)) {
+        if (segments.length === 0) continue;
+        const verts = new Float32Array(segments.length * 6);
+        segments.forEach((seg, i) => verts.set(seg, i * 6));
+        const geom = new THREE.BufferGeometry();
+        geom.setAttribute("position", new THREE.BufferAttribute(verts, 3));
+        cuts[group] = geom;
+      }
+    }
 
-    const rGeom = new THREE.BufferGeometry();
-    rGeom.setAttribute("position", new THREE.BufferAttribute(rapidVerts, 3));
-
-    const cGeom = new THREE.BufferGeometry();
-    cGeom.setAttribute("position", new THREE.BufferAttribute(cutVerts, 3));
-
-    return { rapidGeom: rGeom, cutGeom: cGeom };
+    return { rapid: rapidGeom, cuts };
   }, [gcodeData]);
 
-  if (!gcodeData) return null;
+  if (!geometries) return null;
+
+  const colors = {
+    "Shaker": "#3b82f6",       // blue
+    "Shaker Step": "#22c55e",  // green
+    "Slab": "#f59e0b",         // yellow
+    "default": "#94a3b8",      // gray
+  };
 
   return (
     <group>
       {/* Rapid moves — cyan dashed */}
-      {rapidGeom && rapidGeom.attributes.position.count > 0 && (
-        <lineSegments geometry={rapidGeom}>
+      {geometries.rapid.attributes.position && (
+        <lineSegments geometry={geometries.rapid}>
           <lineDashedMaterial
             color="#38bdf8"
             dashSize={3}
@@ -151,12 +165,12 @@ function GcodeLines({ gcodeData }) {
         </lineSegments>
       )}
 
-      {/* Cutting moves — green solid */}
-      {cutGeom && cutGeom.attributes.position.count > 0 && (
-        <lineSegments geometry={cutGeom}>
-          <lineBasicMaterial color="#4ade80" linewidth={1} />
+      {/* Cutting moves — colored by door type */}
+      {Object.entries(geometries.cuts).map(([group, geom]) => (
+        <lineSegments key={group} geometry={geom}>
+          <lineBasicMaterial color={colors[group] || colors.default} linewidth={1} />
         </lineSegments>
-      )}
+      ))}
     </group>
   );
 }
@@ -167,7 +181,18 @@ function GcodeLines({ gcodeData }) {
 function ToolIndicator({ gcodeData }) {
   const lastPos = useMemo(() => {
     if (!gcodeData) return [0, 0, 30];
-    const allSegs = [...gcodeData.rapid, ...gcodeData.cut];
+    
+    // gather all segments to find the last one
+    let allCutSegs = [];
+    if (gcodeData.cutByGroup) {
+      Object.values(gcodeData.cutByGroup).forEach(arr => {
+        allCutSegs = allCutSegs.concat(arr);
+      });
+    } else if (gcodeData.cut) {
+      allCutSegs = gcodeData.cut;
+    }
+    
+    const allSegs = [...gcodeData.rapid, ...allCutSegs];
     if (allSegs.length === 0) return [0, 0, 30];
     const last = allSegs[allSegs.length - 1];
     return [last[3], last[4], last[5]]; // end position of last segment
@@ -185,9 +210,9 @@ function ToolIndicator({ gcodeData }) {
 //  Main exported component
 // ═══════════════════════════════════════════════════════════════════════
 
-export default function ThreeViewer({ gcodeData, bedWidth = 200, bedHeight = 200 }) {
+export default function ThreeViewer({ gcodeData, bedWidth = 2500, bedHeight = 1250 }) {
   // Camera default: looking at center of the bed from above-front
-  const cameraPos = [bedWidth * 0.6, -bedHeight * 0.3, bedHeight * 0.8];
+  const cameraPos = [bedWidth / 2, -bedHeight * 0.3, bedHeight * 1.5];
   const cameraTarget = [bedWidth / 2, bedHeight / 2, 0];
 
   return (
@@ -196,7 +221,7 @@ export default function ThreeViewer({ gcodeData, bedWidth = 200, bedHeight = 200
         position: cameraPos,
         fov: 50,
         near: 0.1,
-        far: 50000,
+        far: 500000,
       }}
       gl={{ antialias: true, alpha: false }}
       style={{ background: "#0a0c12" }}
@@ -213,7 +238,7 @@ export default function ThreeViewer({ gcodeData, bedWidth = 200, bedHeight = 200
         enableDamping
         dampingFactor={0.1}
         minDistance={10}
-        maxDistance={bedWidth * 5}
+        maxDistance={50000}
         makeDefault
       />
 

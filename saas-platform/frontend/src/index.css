@@ -1,118 +1,131 @@
-/* ══════════════════════════════════════════════════════════════
-   SuperShaker SaaS — Global Styles
-   Dark CNC-themed design system
-   ══════════════════════════════════════════════════════════════ */
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ── Base resets ─────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════
+   SuperShaker SaaS — Design Tokens & Global Styles
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+  --cnc-bg:          #0a0e14;
+  --cnc-surface:     #111827;
+  --cnc-card:        #1a2234;
+  --cnc-border:      #263044;
+  --cnc-accent:      #38bdf8;
+  --cnc-accent-2:    #818cf8;
+  --cnc-text:        #e2e8f0;
+  --cnc-text-muted:  #64748b;
+  --cnc-danger:      #ef4444;
+  --cnc-success:     #22c55e;
+  --cnc-warn:        #f59e0b;
+}
+
+/* ── Tailwind theme colors ─────────────────────────────── */
 @layer base {
+  body {
+    @apply bg-cnc-bg text-cnc-text font-sans;
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    margin: 0;
+    padding: 0;
+  }
+
   * {
     scrollbar-width: thin;
-    scrollbar-color: #2e3345 #1a1d27;
+    scrollbar-color: var(--cnc-border) transparent;
   }
   *::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
   }
   *::-webkit-scrollbar-track {
-    background: #1a1d27;
+    background: transparent;
   }
   *::-webkit-scrollbar-thumb {
-    background: #2e3345;
-    border-radius: 3px;
+    background: var(--cnc-border);
+    border-radius: 99px;
   }
   *::-webkit-scrollbar-thumb:hover {
-    background: #3b82f6;
+    background: var(--cnc-accent);
   }
 }
 
-/* ── Reusable component classes ──────────────────────────────── */
+/* ── Component classes ─────────────────────────────────── */
 @layer components {
-  /* Card container used throughout the dashboard */
-  .cnc-card {
-    @apply bg-cnc-card border border-cnc-border rounded-xl p-5;
+  /* Inputs */
+  .cnc-input {
+    @apply bg-cnc-card border border-cnc-border rounded-lg px-3 py-2
+           text-cnc-text text-sm font-mono
+           focus:outline-none focus:border-cnc-accent/50 focus:ring-1 focus:ring-cnc-accent/20
+           transition-all duration-200;
+  }
+  .cnc-input::-webkit-inner-spin-button,
+  .cnc-input::-webkit-outer-spin-button {
+    opacity: 0.3;
   }
 
-  /* Primary action button */
+  /* Buttons */
   .cnc-btn-primary {
-    @apply bg-cnc-accent hover:bg-cnc-accent-hover text-white
-           font-semibold px-5 py-2.5 rounded-lg
-           transition-all duration-200
-           active:scale-[0.97]
-           disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply bg-gradient-to-r from-cnc-accent to-blue-600
+           text-white font-semibold rounded-lg
+           hover:shadow-lg hover:shadow-cnc-accent/20
+           active:scale-[0.98]
+           disabled:opacity-40 disabled:pointer-events-none
+           transition-all duration-200;
   }
-
-  /* Secondary / ghost button */
   .cnc-btn-ghost {
-    @apply bg-transparent hover:bg-cnc-card text-cnc-text-muted
-           hover:text-cnc-text border border-cnc-border
-           font-medium px-4 py-2 rounded-lg
+    @apply bg-cnc-card border border-cnc-border rounded-lg
+           text-cnc-text font-medium
+           hover:border-cnc-accent/30 hover:bg-cnc-accent/5
+           active:scale-[0.98]
+           disabled:opacity-40 disabled:pointer-events-none
            transition-all duration-200;
   }
 
-  /* Text input field */
-  .cnc-input {
-    @apply bg-cnc-surface border border-cnc-border rounded-lg
-           px-3 py-2 text-cnc-text text-sm font-mono
-           focus:outline-none focus:border-cnc-accent focus:ring-1 focus:ring-cnc-accent/30
-           placeholder:text-cnc-text-muted/50
-           transition-colors duration-150;
-  }
-
-  /* Select dropdown */
-  .cnc-select {
-    @apply bg-cnc-surface border border-cnc-border rounded-lg
-           px-3 py-2 text-cnc-text text-sm
-           focus:outline-none focus:border-cnc-accent
-           cursor-pointer appearance-none;
-  }
-
-  /* Label for form fields */
-  .cnc-label {
-    @apply block text-xs font-medium text-cnc-text-muted uppercase tracking-wider mb-1.5;
-  }
-
-  /* Subtle animated gradient glow on hover (for cards) */
-  .cnc-glow {
-    @apply relative overflow-hidden;
-  }
-  .cnc-glow::before {
-    content: "";
-    @apply absolute inset-0 rounded-xl opacity-0 transition-opacity duration-300;
-    background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(139,92,246,0.06));
-  }
-  .cnc-glow:hover::before {
-    @apply opacity-100;
+  /* Cards */
+  .cnc-card-base {
+    @apply bg-cnc-card border border-cnc-border rounded-xl p-4;
   }
 }
 
-/* ── Animations ──────────────────────────────────────────────── */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
+/* ── Animations ────────────────────────────────────────── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(59,130,246,0.3); }
-  50%      { box-shadow: 0 0 12px 4px rgba(59,130,246,0.15); }
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out both;
 }
 
-.animate-fade-in {
-  animation: fadeIn 0.4s ease-out both;
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.1); }
+  50% { box-shadow: 0 0 12px 2px rgba(56, 189, 248, 0.15); }
 }
 .animate-pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
+  animation: pulse-glow 2.5s ease-in-out infinite;
 }
 
-/* Stagger children fade-in */
-.stagger-children > * {
-  animation: fadeIn 0.35s ease-out both;
+/* ── Table styling ─────────────────────────────────────── */
+#parts-table th {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
-.stagger-children > *:nth-child(1) { animation-delay: 0.04s; }
-.stagger-children > *:nth-child(2) { animation-delay: 0.08s; }
-.stagger-children > *:nth-child(3) { animation-delay: 0.12s; }
-.stagger-children > *:nth-child(4) { animation-delay: 0.16s; }
-.stagger-children > *:nth-child(5) { animation-delay: 0.20s; }
-.stagger-children > *:nth-child(6) { animation-delay: 0.24s; }
+#parts-table td {
+  color: var(--cnc-text);
+}
+
+/* ── Canvas nesting preview ────────────────────────────── */
+#nesting-canvas {
+  display: block;
+  width: 100%;
+}
+
+/* ── Backgrounds ───────────────────────────────────────── */
+.bg-cnc-bg      { background-color: var(--cnc-bg); }
+.bg-cnc-surface  { background-color: var(--cnc-surface); }
+.bg-cnc-card     { background-color: var(--cnc-card); }
+.border-cnc-border { border-color: var(--cnc-border); }
+.text-cnc-text   { color: var(--cnc-text); }
+.text-cnc-text-muted { color: var(--cnc-text-muted); }
+.text-cnc-accent { color: var(--cnc-accent); }

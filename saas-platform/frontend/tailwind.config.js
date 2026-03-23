@@ -5,19 +5,18 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Custom CNC-themed dark palette
         cnc: {
-          bg: "#0f1117",
-          surface: "#1a1d27",
-          card: "#222635",
-          border: "#2e3345",
-          accent: "#3b82f6",
-          "accent-hover": "#2563eb",
+          bg: "#0a0e14",
+          surface: "#111827",
+          card: "#1a2234",
+          border: "#263044",
+          accent: "#38bdf8",
+          "accent-hover": "#0ea5e9",
           success: "#22c55e",
           warning: "#f59e0b",
           danger: "#ef4444",
           text: "#e2e8f0",
-          "text-muted": "#94a3b8",
+          "text-muted": "#64748b",
         },
       },
       fontFamily: {

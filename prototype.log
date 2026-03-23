@@ -1,0 +1,168 @@
+nohup: ignoring input
+Starting SuperShaker SaaS Prototype...
+-> Starting FastAPI Backend (Port 8000)...
+-> Starting React Frontend (Vite)...
+
+============================================================
+SuperShaker SaaS is running!
+Backend API: http://localhost:8000
+Frontend UI: http://localhost:5173
+Press Ctrl+C to stop both servers.
+============================================================
+
+Traceback (most recent call last):
+  File "/home/victor/Documents/Work/SuperShaker/saas-platform/backend/main.py", line 7, in <module>
+    from fastapi import FastAPI, HTTPException
+ModuleNotFoundError: No module named 'fastapi'
+
+> supershaker-saas@0.1.0 dev
+> vite
+
+
+  VITE v6.4.1  ready in 375 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+3:42:11 PM [vite] http proxy error: /doors
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+3:42:11 PM [vite] http proxy error: /settings
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+3:42:11 PM [vite] http proxy error: /doors
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+3:42:11 PM [vite] http proxy error: /settings
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+3:43:40 PM [vite] http proxy error: /doors
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+3:43:40 PM [vite] http proxy error: /settings
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+3:43:40 PM [vite] http proxy error: /doors
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+3:43:40 PM [vite] http proxy error: /settings
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+3:44:37 PM [vite] http proxy error: /doors
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+3:44:37 PM [vite] http proxy error: /settings
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+3:44:37 PM [vite] http proxy error: /doors
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+3:44:37 PM [vite] http proxy error: /settings
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+3:45:15 PM [vite] http proxy error: /health
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+3:45:19 PM [vite] http proxy error: /health
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+3:45:37 PM [vite] http proxy error: /doors
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+3:45:37 PM [vite] http proxy error: /settings
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+3:45:37 PM [vite] http proxy error: /doors
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+3:45:37 PM [vite] http proxy error: /settings
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+3:45:57 PM [vite] http proxy error: /doors
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+3:46:34 PM [vite] http proxy error: /health
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+3:46:54 PM [vite] http proxy error: /doors
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+3:47:41 PM [vite] http proxy error: /settings
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+4:21:38 PM [vite] http proxy error: /doors
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+4:21:38 PM [vite] http proxy error: /settings
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+4:21:38 PM [vite] http proxy error: /doors
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+4:21:38 PM [vite] http proxy error: /settings
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+4:33:25 PM [vite] http proxy error: /doors
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+4:33:25 PM [vite] http proxy error: /settings
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+4:33:25 PM [vite] http proxy error: /doors
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+4:33:25 PM [vite] http proxy error: /settings
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+4:34:37 PM [vite] http proxy error: /doors
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+4:34:37 PM [vite] http proxy error: /settings
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+4:34:37 PM [vite] http proxy error: /doors
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+4:34:37 PM [vite] http proxy error: /settings
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1201:49)
+    at afterConnectMultiple (node:net:1791:7)
+4:45:40 PM [vite] (client) hmr update /src/components/GcodeViewerPanel.jsx, /src/index.css
+4:45:42 PM [vite] (client) hmr update /src/index.css, /src/components/SuperShakerPanel.jsx, /src/components/GcodeViewerPanel.jsx
+4:45:44 PM [vite] (client) hmr update /src/components/SuperShakerPanel.jsx, /src/index.css
+4:45:57 PM [vite] (client) hmr update /src/components/GcodeViewerPanel.jsx, /src/index.css
+4:53:40 PM [vite] (client) hmr update /src/components/ThreeViewer.jsx, /src/index.css
+5:04:52 PM [vite] (client) hmr update /src/index.css, /src/components/SuperShakerPanel.jsx, /src/components/GcodeViewerPanel.jsx
+5:05:17 PM [vite] (client) hmr update /src/components/ThreeViewer.jsx, /src/index.css
