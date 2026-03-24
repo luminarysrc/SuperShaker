@@ -18,9 +18,14 @@ Originally developed as a standalone Python Tkinter application, SuperShaker has
 - **Calculated Chip-Loads & Speeds**: Automatically calculates safe Spindle RPM, Feeds, and stepovers based on tool type (PCD vs. TCT), tool diameter, and depth-of-cut limits.
 - **Interactive 3D Toolpath Visualization**: Uses `react-three-fiber` to render a living 3D preview of the generated `.gcode` lines right in the browser, complete with color-coded operations based on door styles:
   - 🟢 **Green**: Shaker Step profiles
-  - 🔵 **Blue**: Standard Shaker profiles
-  - 🟡 **Yellow**: Slab profiles
-- **Modern User Interface**: A two-panel SaaS architecture. The left panel serves as the primary workspace for adding parts, selecting tooling setups, and running nesting. The right panel serves as the dedicated visualization suite with real-time statistics (yield percentage, rapid moves, etc.).
+  - 🔵 **Sky Blue**: Standard Shaker profiles
+  - 🟡 **Amber**: Slab profiles
+- **Machine Profile System**: Save and switch between multiple CNC machine configurations (tool diameters, spindle speeds, material types) directly from the sidebar. Perfect for shops with multiple routers or varying bit sets.
+- **Global Unit System (MM/Inch)**: Seamless toggle between Metric (mm) and Imperial (inch) units. The backend maintains data integrity in millimeters while the UI handles high-precision conversion (0.001") for the American market.
+- **Modern User Interface**: A three-section SaaS architecture:
+  - **Sidebar**: Quick-access to User Profile, Machine Profiles, and logout.
+  - **Tool Panel (Left)**: Primary workspace for adding parts, selecting tooling setups, and running nesting.
+  - **3D Viewer (Right)**: Dedicated visualization suite with real-time statistics (yield percentage, rapid moves, etc.) and multi-sheet support.
 
 ---
 
@@ -59,7 +64,7 @@ SuperShaker/
 │       └── package.json         # Node.js dependencies
 │   
 ├── start_prototype.sh           # Bash script to boot the entire stack
-└── SuperShaker_v5.4.2.py        # Legacy standalone desktop program
+└── SuperShaker_v5.4.2.py        # Original desktop CAD/CAM engine (reference)
 ```
 
 ---
@@ -95,11 +100,13 @@ To start the full prototype locally (both frontend and backend simultaneously), 
 ## 📖 Usage Guide
 
 1. Open the SaaS application in your browser.
-2. **Add Parts**: In the "Workflow" tab on the left, add desired items by specifying Width, Height, Quantity, and Type (e.g., Shaker).
-3. **Configure Parameters**: Switch to the "Parameters" and "Tool T6" tabs to adjust your kerf, stepover, tooling feeds/speeds, and chamfer depths.
-4. **Run Nesting**: Click `Run Nesting` to view a 2D thumbnail preview of your parts optimally packed onto your configured MDF sheet dimension.
-5. **Generate G-Code**: Click `Generate G-code` to process the job. The mathematical engine will formulate thousands of G-code lines in milliseconds and pass them to the 3D Viewer on the right panel.
-6. **Export**: Click the download/save icon (`💾`) in the top right to download your ready-to-cut `toolpath_sheet1.gcode` file.
+2. **Select Machine Profile**: Use the gear icon (⚙️) in the sidebar to select your CNC machine or create a new one.
+3. **Set Units**: Use the toggle slider at the top of the workflow panel to switch between `mm` and `inch`.
+4. **Add Parts**: In the "Workflow" tab on the left, add desired items by specifying Width, Height, Quantity, and Type (e.g., Shaker).
+5. **Configure Parameters**: Switch to the "Parameters" and "Tool T6" tabs to adjust your kerf, stepover, tooling feeds/speeds, and chamfer depths. Settings are automatically saved to your active profile.
+6. **Run Nesting**: Click `Run Nesting` to view a 2D thumbnail preview of your parts optimally packed onto your configured MDF sheet dimension.
+7. **Generate G-Code**: Click `Generate G-code` to process the job. The mathematical engine will formulate thousands of G-code lines in milliseconds and pass them to the 3D Viewer on the right panel.
+8. **Export**: Click the download icon in the top right of the viewer to download your ready-to-cut `.nc` G-code file.
 
 ---
 
