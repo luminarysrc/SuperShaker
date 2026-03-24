@@ -1,4 +1,4 @@
-# SuperShaker SaaS Platform
+# SuperShaker Platform
 
 **SuperShaker** is a state-of-the-art SaaS application tailored for the CNC woodworking industry, specifically focused on the automated nesting and G-code generation for MDF furniture facades, such as Shaker doors and Slabs.
 
