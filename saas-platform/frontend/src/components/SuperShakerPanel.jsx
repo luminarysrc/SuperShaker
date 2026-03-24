@@ -4,7 +4,7 @@
  */
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
-  listDoors, addDoor, deleteDoor, clearDoors,
+  listDoors, addDoor, deleteDoor, clearDoors, updateDoor,
   getSettings, updateSettings, runNesting, generateFullGcode,
   parseGcode, downloadGcode,
 } from "../services/EngineClient.js";
@@ -21,6 +21,17 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone }) {
 
   // Add door form state
   const [newDoor, setNewDoor] = useState({ w: 400, h: 600, qty: 4, type: "Shaker" });
+  // Inline editing: { id, field }
+  const [editingCell, setEditingCell] = useState(null);
+  const [editingValue, setEditingValue] = useState("");
+  // Unit system: false = mm, true = inch
+  const [useInch, setUseInch] = useState(false);
+  const MM_PER_INCH = 25.4;
+  const toDisplay = (mm) => useInch ? +(mm / MM_PER_INCH).toFixed(3) : mm;
+  const fromDisplay = (val) => useInch ? +(val * MM_PER_INCH).toFixed(2) : val;
+  const unitLabel = useInch ? "in" : "mm";
+  const feedLabel = useInch ? "in/min" : "mm/min";
+  const toFeedDisplay = (mmPerMin) => useInch ? +(mmPerMin / MM_PER_INCH).toFixed(1) : mmPerMin;
 
   // ── Load initial data ─────────────────────────────────
   useEffect(() => {
@@ -78,6 +89,33 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone }) {
       setError(e.message);
     }
   }, []);
+
+  // ── Inline edit cell ──────────────────────────────────
+  const startEdit = (id, field, currentValue) => {
+    setEditingCell({ id, field });
+    setEditingValue(String(currentValue));
+  };
+
+  const commitEdit = useCallback(async (id, field, rawValue) => {
+    setEditingCell(null);
+    const numFields = ["w", "h", "qty"];
+    let value;
+    if (numFields.includes(field)) {
+      const parsed = parseFloat(rawValue) || 0;
+      value = (field === "w" || field === "h") ? fromDisplay(parsed) : parsed;
+    } else {
+      value = rawValue;
+    }
+    try {
+      const door = doors.find(d => d.id === id);
+      if (!door) return;
+      const updated = await updateDoor(id, { ...door, [field]: value });
+      setDoors(prev => prev.map(d => d.id === id ? updated : d));
+      setNestingResult(null);
+    } catch (e) {
+      setError(e.message);
+    }
+  }, [doors, useInch]);
 
   // ── Run Nesting ───────────────────────────────────────
   const handleNesting = useCallback(async () => {
@@ -250,6 +288,25 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone }) {
         {activeSection === "workflow" && (
           <div className="space-y-4 animate-fade-in">
 
+            {/* Unit toggle */}
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] font-mono text-cnc-text-muted uppercase tracking-widest">Units</span>
+              <div className="relative flex items-center bg-[#0a0a0a] rounded-lg p-1 border border-white/10 w-[120px] cursor-pointer shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]">
+                <div 
+                  className="absolute top-1 bottom-1 w-[54px] rounded-md bg-[#1a1a1a] border border-white/5 shadow-[0_2px_6px_rgba(0,0,0,0.6)] transition-transform duration-300 ease-out"
+                  style={{ transform: useInch ? "translateX(56px)" : "translateX(0px)" }}
+                />
+                <button onClick={() => setUseInch(false)}
+                  className={`relative z-10 flex-1 text-center text-[10px] font-mono font-bold py-1 transition-all select-none ${!useInch ? 'text-[#C6F321] drop-shadow-[0_0_6px_rgba(198,243,33,0.5)]' : 'text-gray-600 hover:text-gray-400'}`}>
+                  MM
+                </button>
+                <button onClick={() => setUseInch(true)}
+                  className={`relative z-10 flex-1 text-center text-[10px] font-mono font-bold py-1 transition-all select-none ${useInch ? 'text-[#00FFFF] drop-shadow-[0_0_6px_rgba(0,255,255,0.5)]' : 'text-gray-600 hover:text-gray-400'}`}>
+                  INCH
+                </button>
+              </div>
+            </div>
+
             {/* Order # */}
             <div className="flex items-center gap-2">
               <label className="text-xs text-cnc-text-muted whitespace-nowrap w-16">Order #</label>
@@ -272,15 +329,15 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone }) {
               </div>
               <div className="grid grid-cols-[1fr_1fr_1fr_1.8fr] gap-2">
                 <div>
-                  <label className="text-[10px] text-cnc-text-muted block mb-0.5">W mm</label>
-                  <input type="number" value={newDoor.w}
-                    onChange={e => setNewDoor(p => ({...p, w: parseFloat(e.target.value) || 0}))}
+                  <label className="text-[10px] text-cnc-text-muted block mb-0.5">W {unitLabel}</label>
+                  <input type="number" value={toDisplay(newDoor.w)}
+                    onChange={e => setNewDoor(p => ({...p, w: fromDisplay(parseFloat(e.target.value) || 0)}))}
                     className="cnc-input w-full text-xs" />
                 </div>
                 <div>
-                  <label className="text-[10px] text-cnc-text-muted block mb-0.5">H mm</label>
-                  <input type="number" value={newDoor.h}
-                    onChange={e => setNewDoor(p => ({...p, h: parseFloat(e.target.value) || 0}))}
+                  <label className="text-[10px] text-cnc-text-muted block mb-0.5">H {unitLabel}</label>
+                  <input type="number" value={toDisplay(newDoor.h)}
+                    onChange={e => setNewDoor(p => ({...p, h: fromDisplay(parseFloat(e.target.value) || 0)}))}
                     className="cnc-input w-full text-xs" />
                 </div>
                 <div>
@@ -300,6 +357,65 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone }) {
                   </select>
                 </div>
               </div>
+
+              {/* Facade Type Preview Card */}
+              <div className="bg-[#111113] border border-white/5 rounded-lg p-3 flex gap-3 items-start animate-fade-in" key={newDoor.type}>
+                {/* SVG Diagram */}
+                <div className="w-24 h-20 flex-shrink-0 bg-[#0a0a0a] rounded border border-white/5 flex items-center justify-center">
+                  {newDoor.type === "Shaker" && (
+                    <svg width="80" height="56" viewBox="0 0 80 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      {/* Outer frame */}
+                      <rect x="4" y="4" width="72" height="48" rx="2" stroke="#38bdf8" strokeWidth="1.5" strokeOpacity="0.6"/>
+                      {/* Inner panel (raised) */}
+                      <rect x="14" y="12" width="52" height="32" rx="1" stroke="#38bdf8" strokeWidth="1" fill="#38bdf8" fillOpacity="0.05"/>
+                      {/* Frame grooves */}
+                      <line x1="14" y1="12" x2="4" y2="4" stroke="#38bdf8" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="66" y1="12" x2="76" y2="4" stroke="#38bdf8" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="14" y1="44" x2="4" y2="52" stroke="#38bdf8" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="66" y1="44" x2="76" y2="52" stroke="#38bdf8" strokeWidth="0.5" strokeOpacity="0.3"/>
+                    </svg>
+                  )}
+                  {newDoor.type === "Shaker Step" && (
+                    <svg width="80" height="56" viewBox="0 0 80 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      {/* Outer frame */}
+                      <rect x="4" y="4" width="72" height="48" rx="2" stroke="#4ade80" strokeWidth="1.5" strokeOpacity="0.6"/>
+                      {/* Inner panel */}
+                      <rect x="14" y="12" width="52" height="32" rx="1" stroke="#4ade80" strokeWidth="1" fill="#4ade80" fillOpacity="0.05"/>
+                      {/* Step groove (second inner rect) */}
+                      <rect x="20" y="17" width="40" height="22" rx="1" stroke="#4ade80" strokeWidth="0.8" strokeDasharray="2 1" strokeOpacity="0.4"/>
+                      {/* Corner lines */}
+                      <line x1="14" y1="12" x2="4" y2="4" stroke="#4ade80" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="66" y1="12" x2="76" y2="4" stroke="#4ade80" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="14" y1="44" x2="4" y2="52" stroke="#4ade80" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="66" y1="44" x2="76" y2="52" stroke="#4ade80" strokeWidth="0.5" strokeOpacity="0.3"/>
+                    </svg>
+                  )}
+                  {newDoor.type === "Slab" && (
+                    <svg width="80" height="56" viewBox="0 0 80 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      {/* Flat slab — just a simple rectangle with subtle edge bevel */}
+                      <rect x="4" y="4" width="72" height="48" rx="1" stroke="#f59e0b" strokeWidth="1.5" strokeOpacity="0.6" fill="#f59e0b" fillOpacity="0.03"/>
+                      {/* Edge chamfer lines */}
+                      <line x1="4" y1="4" x2="8" y2="8" stroke="#f59e0b" strokeWidth="0.5" strokeOpacity="0.25"/>
+                      <line x1="76" y1="4" x2="72" y2="8" stroke="#f59e0b" strokeWidth="0.5" strokeOpacity="0.25"/>
+                      <line x1="4" y1="52" x2="8" y2="48" stroke="#f59e0b" strokeWidth="0.5" strokeOpacity="0.25"/>
+                      <line x1="76" y1="52" x2="72" y2="48" stroke="#f59e0b" strokeWidth="0.5" strokeOpacity="0.25"/>
+                      <text x="40" y="30" textAnchor="middle" fill="#f59e0b" fillOpacity="0.3" fontSize="8" fontFamily="monospace">FLAT</text>
+                    </svg>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-xs font-mono font-bold mb-1 ${
+                    newDoor.type === "Shaker" ? "text-sky-400" :
+                    newDoor.type === "Shaker Step" ? "text-green-400" : "text-amber-400"
+                  }`}>{newDoor.type.toUpperCase()}</p>
+                  <p className="text-[10px] text-gray-500 leading-relaxed">
+                    {newDoor.type === "Shaker" && "Classic frame-and-panel facade. A pocket is milled around the inner panel perimeter, creating a clean raised step."}
+                    {newDoor.type === "Shaker Step" && "Two-step facade. An additional inner contour adds depth, requiring two milling passes for a layered profile."}
+                    {newDoor.type === "Slab" && "Flat facade with no frame or panel. Contour cut only, no pocket milling. Minimal machining time."}
+                  </p>
+                </div>
+              </div>
+
               <button onClick={handleAddDoor}
                 className="cnc-btn-ghost w-full text-xs py-1.5">
                 + Add Part
@@ -332,19 +448,57 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone }) {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-cnc-border/30">
-                      {doors.map(d => (
+                      {doors.map(d => {
+                        const isEditing = (field) => editingCell?.id === d.id && editingCell?.field === field;
+                        const cellCls = "py-0 px-0";
+                        const numCell = (field) => isEditing(field) ? (
+                          <input
+                            autoFocus
+                            type="number"
+                            value={editingValue}
+                            onChange={e => setEditingValue(e.target.value)}
+                            onBlur={() => commitEdit(d.id, field, editingValue)}
+                            onKeyDown={e => { if (e.key === "Enter" || e.key === "Tab") commitEdit(d.id, field, editingValue); }}
+                            className="w-full h-8 text-center font-mono text-xs bg-[#1a1a1a] text-[#C6F321] outline-none border-b border-[#C6F321]/60 px-1"
+                          />
+                        ) : (
+                          <span
+                            onClick={() => startEdit(d.id, field, (field === "w" || field === "h") ? toDisplay(d[field]) : d[field])}
+                            className="block w-full h-8 leading-8 text-center font-mono cursor-text hover:bg-white/5 hover:text-[#C6F321] transition-colors px-2"
+                          >{(field === "w" || field === "h") ? toDisplay(d[field]) : d[field]}</span>
+                        );
+
+                        return (
                         <tr key={d.id} className="hover:bg-cnc-card/50 transition-colors">
                           <td className="py-1.5 px-2 font-mono text-cnc-accent">{d.id}</td>
-                          <td className="py-1.5 px-2 text-center font-mono">{d.w}</td>
-                          <td className="py-1.5 px-2 text-center font-mono">{d.h}</td>
-                          <td className="py-1.5 px-2 text-center font-mono">{d.qty}</td>
-                          <td className="py-1.5 px-2 text-center">
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full border
-                              ${d.type === "Shaker" ? "text-sky-400 border-sky-500/30 bg-sky-500/10" :
-                                d.type === "Shaker Step" ? "text-green-400 border-green-500/30 bg-green-500/10" :
-                                "text-amber-400 border-amber-500/30 bg-amber-500/10"}`}>
-                              {d.type}
-                            </span>
+                          <td className={cellCls}>{numCell("w")}</td>
+                          <td className={cellCls}>{numCell("h")}</td>
+                          <td className={cellCls}>{numCell("qty")}</td>
+                          <td className="py-0 px-0 text-center">
+                            {isEditing("type") ? (
+                              <select
+                                autoFocus
+                                value={editingValue}
+                                onChange={e => setEditingValue(e.target.value)}
+                                onBlur={() => commitEdit(d.id, "type", editingValue)}
+                                onKeyDown={e => { if (e.key === "Enter") commitEdit(d.id, "type", editingValue); }}
+                                className="w-full h-8 text-center font-mono text-xs bg-[#1a1a1a] text-[#C6F321] outline-none border-b border-[#C6F321]/60 px-1"
+                              >
+                                <option className="bg-[#1A1A1A] text-white">Shaker</option>
+                                <option className="bg-[#1A1A1A] text-white">Shaker Step</option>
+                                <option className="bg-[#1A1A1A] text-white">Slab</option>
+                              </select>
+                            ) : (
+                              <span
+                                onClick={() => startEdit(d.id, "type", d.type)}
+                                className={`inline-block cursor-pointer text-[10px] px-1.5 py-0.5 rounded-full border m-1
+                                  hover:ring-1 hover:ring-white/30 transition-all
+                                  ${d.type === "Shaker" ? "text-sky-400 border-sky-500/30 bg-sky-500/10" :
+                                    d.type === "Shaker Step" ? "text-green-400 border-green-500/30 bg-green-500/10" :
+                                    "text-amber-400 border-amber-500/30 bg-amber-500/10"}`}>
+                                {d.type}
+                              </span>
+                            )}
                           </td>
                           <td className="py-1.5 px-1">
                             <button onClick={() => handleDeleteDoor(d.id)}
@@ -353,7 +507,8 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone }) {
                             </button>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -415,33 +570,33 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone }) {
         {activeSection === "params" && settings && (
           <div className="space-y-4 animate-fade-in">
             <ParamSection title="Material & Sheet">
-              <ParamField label="Sheet W (mm)" value={settings.sheet_w}
-                onChange={v => handleSettingsChange("sheet_w", v)} />
-              <ParamField label="Sheet H (mm)" value={settings.sheet_h}
-                onChange={v => handleSettingsChange("sheet_h", v)} />
-              <ParamField label="Thickness Z (mm)" value={settings.mat_z}
-                onChange={v => handleSettingsChange("mat_z", v)} step="0.1" />
-              <ParamField label="Edge margin (mm)" value={settings.margin}
-                onChange={v => handleSettingsChange("margin", v)} />
-              <ParamField label="Kerf (mm)" value={settings.kerf}
-                onChange={v => handleSettingsChange("kerf", v)} />
+              <ParamField label={`Sheet W (${unitLabel})`} value={toDisplay(settings.sheet_w)}
+                onChange={v => handleSettingsChange("sheet_w", fromDisplay(v))} />
+              <ParamField label={`Sheet H (${unitLabel})`} value={toDisplay(settings.sheet_h)}
+                onChange={v => handleSettingsChange("sheet_h", fromDisplay(v))} />
+              <ParamField label={`Thickness Z (${unitLabel})`} value={toDisplay(settings.mat_z)}
+                onChange={v => handleSettingsChange("mat_z", fromDisplay(v))} step="0.1" />
+              <ParamField label={`Edge margin (${unitLabel})`} value={toDisplay(settings.margin)}
+                onChange={v => handleSettingsChange("margin", fromDisplay(v))} />
+              <ParamField label={`Kerf (${unitLabel})`} value={toDisplay(settings.kerf)}
+                onChange={v => handleSettingsChange("kerf", fromDisplay(v))} />
             </ParamSection>
 
             <ParamSection title="Facade Parameters">
-              <ParamField label="Frame width (mm)" value={settings.frame_w}
-                onChange={v => handleSettingsChange("frame_w", v)} />
-              <ParamField label="Pocket depth (mm)" value={settings.pocket_depth}
-                onChange={v => handleSettingsChange("pocket_depth", v)} step="0.1" />
-              <ParamField label="2nd depth (mm)" value={settings.pocket_depth2}
-                onChange={v => handleSettingsChange("pocket_depth2", v)} step="0.1" />
-              <ParamField label="2nd offset (mm)" value={settings.pocket_step_offset}
-                onChange={v => handleSettingsChange("pocket_step_offset", v)} step="0.5" />
-              <ParamField label="Inner chamfer (mm)" value={settings.chamfer_depth}
-                onChange={v => handleSettingsChange("chamfer_depth", v)} step="0.1" />
-              <ParamField label="Outer chamfer (mm)" value={settings.outer_chamfer_depth}
-                onChange={v => handleSettingsChange("outer_chamfer_depth", v)} step="0.1" />
-              <ParamField label="Corner R (mm)" value={settings.corner_r}
-                onChange={v => handleSettingsChange("corner_r", v)} step="0.1" />
+              <ParamField label={`Frame width (${unitLabel})`} value={toDisplay(settings.frame_w)}
+                onChange={v => handleSettingsChange("frame_w", fromDisplay(v))} />
+              <ParamField label={`Pocket depth (${unitLabel})`} value={toDisplay(settings.pocket_depth)}
+                onChange={v => handleSettingsChange("pocket_depth", fromDisplay(v))} step="0.1" />
+              <ParamField label={`2nd depth (${unitLabel})`} value={toDisplay(settings.pocket_depth2)}
+                onChange={v => handleSettingsChange("pocket_depth2", fromDisplay(v))} step="0.1" />
+              <ParamField label={`2nd offset (${unitLabel})`} value={toDisplay(settings.pocket_step_offset)}
+                onChange={v => handleSettingsChange("pocket_step_offset", fromDisplay(v))} step="0.5" />
+              <ParamField label={`Inner chamfer (${unitLabel})`} value={toDisplay(settings.chamfer_depth)}
+                onChange={v => handleSettingsChange("chamfer_depth", fromDisplay(v))} step="0.1" />
+              <ParamField label={`Outer chamfer (${unitLabel})`} value={toDisplay(settings.outer_chamfer_depth)}
+                onChange={v => handleSettingsChange("outer_chamfer_depth", fromDisplay(v))} step="0.1" />
+              <ParamField label={`Corner R (${unitLabel})`} value={toDisplay(settings.corner_r)}
+                onChange={v => handleSettingsChange("corner_r", fromDisplay(v))} step="0.1" />
             </ParamSection>
 
             <ParamSection title="Operations">
@@ -488,14 +643,14 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone }) {
                   ))}
                 </div>
               </div>
-              <ParamField label="Diameter D (mm)" value={settings.t6_dia}
-                onChange={v => handleSettingsChange("t6_dia", v)} step="0.25" />
+              <ParamField label={`Diameter D (${unitLabel})`} value={toDisplay(settings.t6_dia)}
+                onChange={v => handleSettingsChange("t6_dia", fromDisplay(v))} step="0.25" />
               <ParamField label="Teeth z" value={settings.t6_teeth}
                 onChange={v => handleSettingsChange("t6_teeth", parseInt(v))} type="number" />
               <ParamField label="Spindle RPM" value={settings.t6_spindle}
                 onChange={v => handleSettingsChange("t6_spindle", parseInt(v))} />
-              <ParamField label="Feed (mm/min)" value={settings.t6_feed}
-                onChange={v => handleSettingsChange("t6_feed", parseInt(v))} />
+              <ParamField label={`Feed (${feedLabel})`} value={toFeedDisplay(settings.t6_feed)}
+                onChange={v => handleSettingsChange("t6_feed", useInch ? +(v * 25.4).toFixed(0) : parseInt(v))} />
             </ParamSection>
 
             <ParamSection title="Strategy">
@@ -520,17 +675,17 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone }) {
                 <div className="bg-cnc-card rounded-lg p-2 border border-cnc-border">
                   <p className="font-semibold text-cnc-text mb-1">{settings.t2_tool_t} D4</p>
                   <p>Corner rest</p>
-                  <p className="font-mono text-cnc-text">{settings.t2_feed} mm/min</p>
+                  <p className="font-mono text-cnc-text">{toFeedDisplay(settings.t2_feed)} {feedLabel}</p>
                 </div>
                 <div className="bg-cnc-card rounded-lg p-2 border border-cnc-border">
                   <p className="font-semibold text-cnc-text mb-1">{settings.t3_tool_t} D6</p>
                   <p>Contour cut</p>
-                  <p className="font-mono text-cnc-text">{settings.t3_feed} mm/min</p>
+                  <p className="font-mono text-cnc-text">{toFeedDisplay(settings.t3_feed)} {feedLabel}</p>
                 </div>
                 <div className="bg-cnc-card rounded-lg p-2 border border-cnc-border">
                   <p className="font-semibold text-cnc-text mb-1">{settings.t5_tool_t} V90</p>
                   <p>Chamfer/Miter</p>
-                  <p className="font-mono text-cnc-text">{settings.t5_feed} mm/min</p>
+                  <p className="font-mono text-cnc-text">{toFeedDisplay(settings.t5_feed)} {feedLabel}</p>
                 </div>
               </div>
             </ParamSection>
