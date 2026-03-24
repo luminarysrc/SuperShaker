@@ -68,6 +68,54 @@ export async function updateSettings(settings) {
 }
 
 // ═══════════════════════════════════════════════════════════
+//  Machine Profiles
+// ═══════════════════════════════════════════════════════════
+
+export async function listProfiles() {
+  const r = await fetch(`${API_BASE}/profiles`);
+  if (!r.ok) throw new Error(`API error: ${r.status}`);
+  return r.json();
+}
+
+export async function createProfile(name) {
+  const r = await fetch(`${API_BASE}/profiles`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!r.ok) throw new Error(`API error: ${r.status}`);
+  return r.json();
+}
+
+export async function renameProfile(id, name) {
+  const r = await fetch(`${API_BASE}/profiles/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!r.ok) throw new Error(`API error: ${r.status}`);
+  return r.json();
+}
+
+export async function deleteProfile(id) {
+  const r = await fetch(`${API_BASE}/profiles/${id}`, { method: "DELETE" });
+  if (!r.ok) throw new Error(`API error: ${r.status}`);
+  return r.json();
+}
+
+export async function loadProfile(id) {
+  const r = await fetch(`${API_BASE}/profiles/${id}/load`, { method: "POST" });
+  if (!r.ok) throw new Error(`API error: ${r.status}`);
+  return r.json();
+}
+
+export async function saveProfile(id) {
+  const r = await fetch(`${API_BASE}/profiles/${id}/save`, { method: "POST" });
+  if (!r.ok) throw new Error(`API error: ${r.status}`);
+  return r.json();
+}
+
+// ═══════════════════════════════════════════════════════════
 //  Chip-load Calculator
 // ═══════════════════════════════════════════════════════════
 

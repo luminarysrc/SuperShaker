@@ -9,7 +9,7 @@ import {
   parseGcode, downloadGcode,
 } from "../services/EngineClient.js";
 
-export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone }) {
+export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, settingsVersion }) {
   // ── State ─────────────────────────────────────────────
   const [doors, setDoors] = useState([]);
   const [settings, setSettings] = useState(null);
@@ -45,6 +45,19 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone }) {
       }
     })();
   }, []);
+
+  // ── Reload settings when profile changes ──────────────
+  useEffect(() => {
+    if (settingsVersion === 0 || settingsVersion === undefined) return;
+    (async () => {
+      try {
+        const s = await getSettings();
+        setSettings(s);
+      } catch (e) {
+        setError("Failed to reload settings");
+      }
+    })();
+  }, [settingsVersion]);
 
   // ── Settings update helper ────────────────────────────
   const handleSettingsChange = useCallback(async (key, value) => {

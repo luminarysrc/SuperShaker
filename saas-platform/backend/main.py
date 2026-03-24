@@ -4,6 +4,7 @@ SuperShaker SaaS — FastAPI Backend
 REST API for nesting and G-code generation using the real SuperShaker engine.
 Run with: uvicorn main:app --reload --port 8000
 """
+import copy
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -37,29 +38,38 @@ app.add_middleware(
 #  In-memory state (single-user prototype)
 # ════════════════════════════════════════════════════════════
 
+_DEFAULT_SETTINGS = {
+    "sheet_w": 1245, "sheet_h": 2466,
+    "mat_z": 19.2, "margin": 10, "kerf": 6.0,
+    "frame_w": 65.0, "pocket_depth": 7.5, "pocket_depth2": 3.0,
+    "pocket_step_offset": 5.0, "chamfer_depth": 0.5,
+    "outer_chamfer_depth": 0.5, "corner_r": 1.0, "feed_xy": 8000,
+    "t6_name": "T6", "t6_dia": 31.75, "t6_type": "PCD",
+    "t6_spindle": 18000, "t6_feed": 6000, "t6_teeth": 2,
+    "pocket_strategy": "Snake", "spiral_overlap": 50.0,
+    "do_pocket": True, "do_corners_rest": True,
+    "do_french_miter": True, "do_cutout": True,
+    "do_rough_pass": False, "allow_rotation": True,
+    "small_part_threshold": 0.05,
+    "t2_tool_t": "T2", "t2_spindle": 18000, "t2_feed": 6000,
+    "t3_tool_t": "T3", "t3_spindle": 18000, "t3_feed": 8000,
+    "t5_tool_t": "T5", "t5_spindle": 18000, "t5_feed": 8000,
+    "order_id": "",
+}
+
 _state = {
     "doors": [],
     "next_id": 1,
     "nesting_result": None,
-    "settings": {
-        "sheet_w": 1245, "sheet_h": 2466,
-        "mat_z": 19.2, "margin": 10, "kerf": 6.0,
-        "frame_w": 65.0, "pocket_depth": 7.5, "pocket_depth2": 3.0,
-        "pocket_step_offset": 5.0, "chamfer_depth": 0.5,
-        "outer_chamfer_depth": 0.5, "corner_r": 1.0, "feed_xy": 8000,
-        "t6_name": "T6", "t6_dia": 31.75, "t6_type": "PCD",
-        "t6_spindle": 18000, "t6_feed": 6000, "t6_teeth": 2,
-        "pocket_strategy": "Snake", "spiral_overlap": 50.0,
-        "do_pocket": True, "do_corners_rest": True,
-        "do_french_miter": True, "do_cutout": True,
-        "do_rough_pass": False, "allow_rotation": True,
-        "small_part_threshold": 0.05,
-        "t2_tool_t": "T2", "t2_spindle": 18000, "t2_feed": 6000,
-        "t3_tool_t": "T3", "t3_spindle": 18000, "t3_feed": 8000,
-        "t5_tool_t": "T5", "t5_spindle": 18000, "t5_feed": 8000,
-        "order_id": "",
-    },
+    "settings": copy.deepcopy(_DEFAULT_SETTINGS),
+    "active_profile_id": 1,
 }
+
+# Machine profiles — each stores a full settings snapshot
+_profiles = [
+    {"id": 1, "name": "Default CNC", "settings": copy.deepcopy(_DEFAULT_SETTINGS)},
+]
+_profile_next_id = 2
 
 
 # ════════════════════════════════════════════════════════════
@@ -120,6 +130,10 @@ class SettingsModel(BaseModel):
     t5_spindle: Optional[int] = None
     t5_feed: Optional[int] = None
     order_id: Optional[str] = None
+
+
+class ProfileIn(BaseModel):
+    name: str = Field(..., min_length=1, max_length=50)
 
 
 class CalcParamsRequest(BaseModel):
@@ -200,6 +214,72 @@ async def update_settings(s: SettingsModel):
     for k, v in s.model_dump(exclude_none=True).items():
         _state["settings"][k] = v
     return _state["settings"]
+
+
+# ── Machine Profiles ─────────────────────────────────────
+
+@app.get("/profiles")
+async def list_profiles():
+    return {
+        "profiles": [{"id": p["id"], "name": p["name"]} for p in _profiles],
+        "active_id": _state["active_profile_id"],
+    }
+
+
+@app.post("/profiles")
+async def create_profile(body: ProfileIn):
+    global _profile_next_id
+    profile = {
+        "id": _profile_next_id,
+        "name": body.name,
+        "settings": copy.deepcopy(_state["settings"]),
+    }
+    _profile_next_id += 1
+    _profiles.append(profile)
+    _state["active_profile_id"] = profile["id"]
+    return {"id": profile["id"], "name": profile["name"]}
+
+
+@app.put("/profiles/{profile_id}")
+async def rename_profile(profile_id: int, body: ProfileIn):
+    for p in _profiles:
+        if p["id"] == profile_id:
+            p["name"] = body.name
+            return {"id": p["id"], "name": p["name"]}
+    raise HTTPException(404, f"Profile {profile_id} not found")
+
+
+@app.delete("/profiles/{profile_id}")
+async def delete_profile(profile_id: int):
+    if len(_profiles) <= 1:
+        raise HTTPException(400, "Cannot delete the last profile")
+    idx = next((i for i, p in enumerate(_profiles) if p["id"] == profile_id), None)
+    if idx is None:
+        raise HTTPException(404, f"Profile {profile_id} not found")
+    _profiles.pop(idx)
+    if _state["active_profile_id"] == profile_id:
+        _state["active_profile_id"] = _profiles[0]["id"]
+        _state["settings"] = copy.deepcopy(_profiles[0]["settings"])
+    return {"ok": True, "active_id": _state["active_profile_id"]}
+
+
+@app.post("/profiles/{profile_id}/load")
+async def load_profile(profile_id: int):
+    for p in _profiles:
+        if p["id"] == profile_id:
+            _state["settings"] = copy.deepcopy(p["settings"])
+            _state["active_profile_id"] = profile_id
+            return _state["settings"]
+    raise HTTPException(404, f"Profile {profile_id} not found")
+
+
+@app.post("/profiles/{profile_id}/save")
+async def save_profile(profile_id: int):
+    for p in _profiles:
+        if p["id"] == profile_id:
+            p["settings"] = copy.deepcopy(_state["settings"])
+            return {"ok": True, "id": p["id"], "name": p["name"]}
+    raise HTTPException(404, f"Profile {profile_id} not found")
 
 
 # ── Chip-load Calculator ─────────────────────────────────
