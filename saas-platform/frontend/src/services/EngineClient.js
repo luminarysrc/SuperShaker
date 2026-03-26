@@ -130,6 +130,44 @@ export async function calcParams(params) {
 }
 
 // ═══════════════════════════════════════════════════════════
+//  Labels
+// ═══════════════════════════════════════════════════════════
+
+export async function downloadLabelsPdf(edgeBanding = {}) {
+  // First we need orderId and doors
+  const [settings, doors] = await Promise.all([
+    getSettings(),
+    listDoors()
+  ]);
+
+  const orderId = settings.order_id || "ORDER";
+
+  const payload = {
+    order_id: orderId,
+    doors: doors,
+    edge_banding: edgeBanding
+  };
+
+  const r = await fetch(`${API_BASE}/labels/pdf`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  if (!r.ok) {
+    throw new Error(`API error: ${r.status}`);
+  }
+
+  const blob = await r.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `labels_${orderId}.pdf`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ═══════════════════════════════════════════════════════════
 //  Nesting
 // ═══════════════════════════════════════════════════════════
 
