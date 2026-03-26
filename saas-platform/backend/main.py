@@ -7,10 +7,12 @@ Run with: uvicorn main:app --reload --port 8000
 import copy
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, Dict
 
 from engine import do_nesting, generate_gcode_for_sheet, calc_t6_params
+from label_generator import generate_labels_pdf
 
 # ════════════════════════════════════════════════════════════
 #  FastAPI Application
@@ -146,6 +148,17 @@ class CalcParamsRequest(BaseModel):
 
 class GenerateRequest(BaseModel):
     sheet_index: int = Field(0, description="0-based sheet index, or -1 for all sheets")
+
+class EdgeBanding(BaseModel):
+    top: bool = False
+    bottom: bool = False
+    left: bool = False
+    right: bool = False
+
+class LabelRequest(BaseModel):
+    order_id: str = ""
+    doors: list[dict]
+    edge_banding: Dict[str, EdgeBanding] = {}
 
 
 # ════════════════════════════════════════════════════════════
@@ -306,6 +319,35 @@ async def nest():
     )
     _state["nesting_result"] = result
     return result
+
+
+# ── Labels ───────────────────────────────────────────────
+
+from fastapi.responses import Response
+
+@app.post("/labels/pdf")
+async def create_labels_pdf(req: LabelRequest):
+    pdf_buffer = generate_labels_pdf(req)
+    return Response(
+        content=pdf_buffer.getvalue(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=labels_{req.order_id}.pdf"}
+    )
+
+@app.get("/labels/pdf")
+async def create_labels_pdf_get():
+    order_id = _state["settings"].get("order_id", "")
+    req = LabelRequest(
+        order_id=order_id,
+        doors=_state["doors"],
+        edge_banding={}
+    )
+    pdf_buffer = generate_labels_pdf(req)
+    return Response(
+        content=pdf_buffer.getvalue(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=labels_{order_id}.pdf"}
+    )
 
 
 # ── G-code Generation ────────────────────────────────────
