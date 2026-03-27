@@ -7,7 +7,6 @@ Run with: uvicorn main:app --reload --port 8000
 import copy
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Optional, Dict
 
