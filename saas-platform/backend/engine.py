@@ -7,6 +7,25 @@ Contains: MaxRectsPacker, nesting, G-code generation, calc_t6_params.
 import math
 import re
 
+RU_MAP = {
+    'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo',
+    'ж': 'zh', 'з': 'z', 'и': 'i', 'й': 'j', 'к': 'k', 'л': 'l', 'м': 'm',
+    'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u',
+    'ф': 'f', 'х': 'kh', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'sch',
+    'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya',
+}
+SUBS_MAP = {'\u2014': '-', '\u2013': '-', '\u2192': '->', '\u21d2': '=>',
+            '\u2026': '...', '\u22c5': '*'}
+
+def _make_gcode_trans_table():
+    table = {ord(u): r for u, r in SUBS_MAP.items()}
+    for u, r in RU_MAP.items():
+        table[ord(u)] = r
+        table[ord(u.upper())] = r.upper()
+    return table
+
+_GCODE_TRANS_TABLE = _make_gcode_trans_table()
+
 
 # ════════════════════════════════════════════════════════════════════════
 #  MaxRects Bin Packing (Best Short Side Fit)
@@ -373,30 +392,9 @@ def do_nesting(doors, sheet_w, sheet_h, margin, kerf,
 
 def _sanitize_gcode(lines):
     """Strip non-ASCII from G-code comment tokens."""
-    RU = {
-        'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo',
-        'ж': 'zh', 'з': 'z', 'и': 'i', 'й': 'j', 'к': 'k', 'л': 'l', 'м': 'm',
-        'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u',
-        'ф': 'f', 'х': 'kh', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'sch',
-        'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya',
-    }
-    SUBS = {'\u2014': '-', '\u2013': '-', '\u2192': '->', '\u21d2': '=>',
-            '\u2026': '...', '\u22c5': '*'}
 
     def clean_comment(text):
-        for u, r in SUBS.items():
-            text = text.replace(u, r)
-        out = []
-        for ch in text:
-            lo = ch.lower()
-            if lo in RU:
-                tr = RU[lo]
-                out.append(tr.upper() if ch.isupper() else tr)
-            elif ord(ch) > 127:
-                pass
-            else:
-                out.append(ch)
-        return ''.join(out).replace(' / ', ' + ')
+        return text.translate(_GCODE_TRANS_TABLE).encode('ascii', 'ignore').decode().replace(' / ', ' + ')
 
     sanitized = []
     for line in lines:
