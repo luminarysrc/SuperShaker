@@ -252,6 +252,7 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
       };
       sheet.forEach(d => {
         const x1 = xo + d.x * scale;
+        // FIX: Y-axis aligns with G-code (Y=0 at the bottom)
         const y1 = yo + thumbH - (d.y + d.h) * scale;
         const w = d.w * scale;
         const h = d.h * scale;
