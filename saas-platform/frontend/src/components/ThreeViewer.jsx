@@ -49,6 +49,7 @@ function MachineBed({ width, height }) {
         fadeDistance={gridSize * 2}
         fadeStrength={1}
         position={[width / 2, height / 2, 0]}
+        rotation={[Math.PI / 2, 0, 0]}
       />
 
       {/* Machine bed outline (white rectangle) */}
@@ -222,6 +223,7 @@ export default function ThreeViewer({ gcodeData, bedWidth = 2500, bedHeight = 12
         fov: 50,
         near: 0.1,
         far: 500000,
+        up: [0, 0, 1],
       }}
       gl={{ antialias: true, alpha: false }}
       style={{ background: "#0a0c12" }}
@@ -235,6 +237,7 @@ export default function ThreeViewer({ gcodeData, bedWidth = 2500, bedHeight = 12
       {/* Interactive camera controls */}
       <OrbitControls
         target={cameraTarget}
+        up={[0, 0, 1]}
         enableDamping
         dampingFactor={0.1}
         minDistance={10}
