@@ -47,6 +47,20 @@ export async function clearDoors() {
   return r.json();
 }
 
+export async function uploadBatchExcel(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  const r = await fetch(`${API_BASE}/jobs/import-batch`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    throw new Error(err.detail || `API error: ${r.status}`);
+  }
+  return r.json();
+}
+
 // ═══════════════════════════════════════════════════════════
 //  Settings
 // ═══════════════════════════════════════════════════════════

@@ -5,7 +5,9 @@ REST API for nesting and G-code generation using the real SuperShaker engine.
 Run with: uvicorn main:app --reload --port 8000
 """
 import copy
-from fastapi import FastAPI, HTTPException
+import io
+import pandas as pd
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional, Dict
@@ -212,6 +214,75 @@ async def clear_doors():
     _state["next_id"] = 1
     _state["nesting_result"] = None
     return {"ok": True}
+
+
+@app.post("/jobs/import-batch")
+async def import_batch(file: UploadFile = File(...)):
+    if not file.filename.endswith((".xlsx", ".csv")):
+        raise HTTPException(400, "Invalid file format. Only .xlsx and .csv allowed.")
+    
+    contents = await file.read()
+    try:
+        if file.filename.endswith(".csv"):
+            df = pd.read_csv(io.BytesIO(contents))
+        else:
+            df = pd.read_excel(io.BytesIO(contents))
+    except Exception as e:
+        raise HTTPException(400, f"Error reading file: {str(e)}")
+        
+    col_map = {str(c).lower().strip(): c for c in df.columns}
+    
+    def get_col(candidates):
+        for c in candidates:
+            if c in col_map:
+                return col_map[c]
+        return None
+        
+    w_col = get_col(["w", "width", "x"])
+    h_col = get_col(["h", "height", "y"])
+    qty_col = get_col(["qty", "quantity", "count", "num", "amount"])
+    type_col = get_col(["type", "style", "facade"])
+    
+    if not w_col or not h_col:
+        raise HTTPException(400, "Excel/CSV must contain 'W'/'Width' and 'H'/'Height' columns.")
+        
+    added = 0
+    for _, row in df.iterrows():
+        try:
+            w = float(row[w_col])
+            h = float(row[h_col])
+            if pd.isna(w) or pd.isna(h):
+                continue
+                
+            qty = 1
+            if qty_col and not pd.isna(row[qty_col]):
+                qty_val = row[qty_col]
+                if not pd.isna(qty_val):
+                    qty = int(qty_val)
+                
+            d_type = "Shaker"
+            if type_col and not pd.isna(row[type_col]):
+                t_val = str(row[type_col]).strip().title()
+                if t_val in ["Shaker", "Shaker Step", "Slab"]:
+                    d_type = t_val
+                elif "Step" in t_val:
+                    d_type = "Shaker Step"
+                elif "Slab" in t_val or "Flat" in t_val:
+                    d_type = "Slab"
+
+            d = {
+                "id": _state["next_id"],
+                "w": w, "h": h,
+                "qty": qty, "type": d_type,
+            }
+            _state["next_id"] += 1
+            _state["doors"].append(d)
+            added += 1
+        except Exception:
+            pass
+            
+    _state["nesting_result"] = None
+    return {"ok": True, "added": added}
 
 
 # ── Settings ─────────────────────────────────────────────

@@ -4,9 +4,10 @@
  */
 import React, { useState, useCallback } from "react";
 import ThreeViewer from "./ThreeViewer.jsx";
-import { readGcodeFile, parseGcode, downloadGcode } from "../services/EngineClient.js";
+import { readGcodeFile, parseGcode, downloadGcode, uploadBatchExcel } from "../services/EngineClient.js";
 
 export default function GcodeViewerPanel({
+  onDoorsImported,
   gcodeData,
   gcodeText,
   stats,
@@ -22,7 +23,68 @@ export default function GcodeViewerPanel({
   const displayText = localGcode || gcodeText;
   const currentStats = allSheets ? allSheets[activeSheet]?.stats : stats;
 
-  // ── File upload ──────────────────────────────────────
+  const [isUploadingExcel, setIsUploadingExcel] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+
+  // ── Drag & Drop ──────────────────────────────────────
+  const handleDragOver = useCallback((e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback(async (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+
+    const name = file.name.toLowerCase();
+    if (name.endsWith('.xlsx') || name.endsWith('.csv')) {
+      setIsUploadingExcel(true);
+      try {
+        await uploadBatchExcel(file);
+        if (onDoorsImported) onDoorsImported();
+      } catch (err) {
+        console.error("Failed to upload excel batch:", err);
+        alert("Failed to import batch parts: " + err.message);
+      } finally {
+        setIsUploadingExcel(false);
+      }
+    } else {
+      try {
+        const text = await readGcodeFile(file);
+        const parsed = parseGcode(text);
+        setLocalGcode(text);
+        setLocalGcodeData(parsed);
+      } catch (err) {
+        console.error("Failed to read dropped file as G-code:", err);
+      }
+    }
+  }, [onDoorsImported]);
+
+  // ── Excel File upload ────────────────────────────────
+  const handleExcelUpload = useCallback(async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingExcel(true);
+    try {
+      await uploadBatchExcel(file);
+      if (onDoorsImported) onDoorsImported();
+    } catch (err) {
+      console.error("Failed to upload excel batch:", err);
+      alert("Failed to import batch parts: " + err.message);
+    } finally {
+      setIsUploadingExcel(false);
+    }
+    e.target.value = "";
+  }, [onDoorsImported]);
+
+  // ── Gcode File upload ────────────────────────────────
   const handleFileUpload = useCallback(async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -58,7 +120,28 @@ export default function GcodeViewerPanel({
   }, [displayText, activeSheet, allSheets, orderId]);
 
   return (
-    <div className="h-full flex flex-col bg-cnc-bg" id="gcode-viewer-panel">
+    <div 
+      className={`h-full flex flex-col transition-colors duration-200 ${isDragging ? "bg-cnc-surface/70 ring-2 ring-inset ring-[#4ade80]/60" : "bg-cnc-bg"}`} 
+      id="gcode-viewer-panel"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {isDragging && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm pointer-events-none rounded-lg m-2">
+          <div className="text-center p-8 border-2 border-dashed border-[#4ade80]/60 rounded-2xl bg-[#0a0a0a]/80 shadow-[0_0_20px_rgba(74,222,128,0.2)]">
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none"
+                 stroke="#4ade80" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+                 className="mx-auto mb-4 animate-bounce">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" x2="12" y1="3" y2="15" />
+            </svg>
+            <p className="text-[#4ade80] font-bold text-xl mb-1 tracking-wider">Drop file to import</p>
+            <p className="text-gray-400 text-xs font-mono">Supports .xlsx, .csv (Batch) or .nc (Toolpath)</p>
+          </div>
+        </div>
+      )}
       {/* ── Toolbar ─────────────────────────────────────── */}
       <div className="flex items-center gap-2 p-2 border-b border-cnc-border bg-cnc-surface/80 backdrop-blur-sm">
         {/* Sheet tabs */}
@@ -111,6 +194,24 @@ export default function GcodeViewerPanel({
             G-CODE
           </button>
         </div>
+
+        {/* Excel Batch Upload */}
+        <label className={`group relative w-10 h-10 mr-1 rounded-lg bg-[#0a0a0a] border border-white/10 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]
+                          hover:bg-[#1a1a1a] hover:text-[#4ade80] hover:border-[#4ade80]/50 hover:shadow-[0_0_12px_rgba(74,222,128,0.3)]
+                          cursor-pointer transition-all flex items-center justify-center active:scale-95
+                          ${isUploadingExcel ? 'text-[#4ade80] animate-pulse cursor-wait' : 'text-gray-500'}`} title="Excel Batch Import (.xlsx, .csv)">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+               className="group-hover:drop-shadow-[0_0_8px_rgba(74,222,128,0.8)] transition-all">
+            <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
+            <path d="M7 7h10"/>
+            <path d="M7 12h10"/>
+            <path d="M7 17h10"/>
+          </svg>
+          <input type="file" accept=".xlsx,.csv" className="hidden"
+                 disabled={isUploadingExcel}
+                 onChange={handleExcelUpload} />
+         </label>
 
         {/* Upload */}
         <label className="group relative w-10 h-10 rounded-lg bg-[#0a0a0a] text-gray-500 border border-white/10 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]

@@ -9,7 +9,7 @@ import {
   parseGcode, downloadGcode, downloadLabelsPdf
 } from "../services/EngineClient.js";
 
-export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, settingsVersion }) {
+export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, settingsVersion, doorsVersion }) {
   // ── State ─────────────────────────────────────────────
   const [doors, setDoors] = useState([]);
   const [settings, setSettings] = useState(null);
@@ -59,6 +59,20 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
       }
     })();
   }, [settingsVersion]);
+
+  // ── Reload doors when doorsVersion changes ────────────
+  useEffect(() => {
+    if (doorsVersion === 0 || doorsVersion === undefined) return;
+    (async () => {
+      try {
+        const d = await listDoors();
+        setDoors(d);
+        setNestingResult(null);
+      } catch (e) {
+        setError("Failed to reload parts from batch import");
+      }
+    })();
+  }, [doorsVersion]);
 
   // ── Settings update helper ────────────────────────────
   const handleSettingsChange = useCallback(async (key, value) => {

@@ -24,6 +24,7 @@ export default function App() {
   const [profiles, setProfiles] = useState([]);
   const [activeProfileId, setActiveProfileId] = useState(null);
   const [settingsVersion, setSettingsVersion] = useState(0); // bump to tell SuperShakerPanel to re-fetch
+  const [doorsVersion, setDoorsVersion] = useState(0); // bump to tell SuperShakerPanel to re-fetch doors
 
   const handleLogin = useCallback((u) => setUser(u), []);
   const handleLogout = useCallback(() => {
@@ -130,11 +131,13 @@ export default function App() {
             onGcodeGenerated={handleGcodeGenerated}
             onNestingDone={handleNestingDone}
             settingsVersion={settingsVersion}
+            doorsVersion={doorsVersion}
           />
         </div>
         {/* Right: G-code 3D Viewer */}
         <div className="flex-1 min-w-0">
           <GcodeViewerPanel
+            onDoorsImported={() => setDoorsVersion(v => v + 1)}
             gcodeData={gcodeData}
             gcodeText={gcodeText}
             stats={gcodeStats}
