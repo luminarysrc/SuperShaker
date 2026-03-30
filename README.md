@@ -26,6 +26,7 @@ Originally developed as a standalone Python Tkinter application, SuperShaker has
   - **Sidebar**: Quick-access to User Profile, Machine Profiles, and logout.
   - **Tool Panel (Left)**: Primary workspace for adding parts, selecting tooling setups, and running nesting.
   - **3D Viewer (Right)**: Dedicated visualization suite with real-time statistics (yield percentage, rapid moves, etc.) and multi-sheet support.
+- **Excel Batch Import**: Drag-and-drop support for `.xlsx` or `.csv` files containing hundreds of cabinet dimensions directly into the workspace. Intelligent column mapping automatically identifies `Width`, `Height`, `Quantity`, and `Type` headers.
 
 ---
 
@@ -104,15 +105,15 @@ To start the full prototype locally (both frontend and backend simultaneously), 
 3. **Set Units**: Use the toggle slider at the top of the workflow panel to switch between `mm` and `inch`.
 4. **Add Parts**: In the "Workflow" tab on the left, add desired items by specifying Width, Height, Quantity, and Type (e.g., Shaker).
 5. **Configure Parameters**: Switch to the "Parameters" and "Tool T6" tabs to adjust your kerf, stepover, tooling feeds/speeds, and chamfer depths. Settings are automatically saved to your active profile.
-6. **Export PDF Labels**: Configure edge banding logic via the parts table and click `Export PDF Labels` to automatically generate Avery-style barcode labels.
-7. **Run Nesting**: Click `Run Nesting` to view a 2D thumbnail preview of your parts optimally packed onto your configured MDF sheet dimension.
-8. **Generate G-Code**: Click `Generate G-code` to process the job. The mathematical engine will formulate thousands of G-code lines in milliseconds and pass them to the 3D Viewer on the right panel.
-9. **Export**: Click the download icon in the top right of the viewer to download your ready-to-cut `.nc` G-code file.
+6. **Batch Import (Optional)**: Click the **Excel Import** icon in the Right Panel's toolbar or simply **Drag and Drop** an `.xlsx` or `.csv` file anywhere onto the 3D Viewer. The system will automatically parse the file and add the parts to your list.
+7. **Export PDF Labels**: Configure edge banding logic via the parts table and click `Export PDF Labels` to automatically generate Avery-style barcode labels.
+8. **Run Nesting**: Click `Run Nesting` to view a 2D thumbnail preview of your parts optimally packed onto your configured MDF sheet dimension.
+9. **Generate G-Code**: Click `Generate G-code` to process the job. The mathematical engine will formulate thousands of G-code lines in milliseconds and pass them to the 3D Viewer on the right panel.
+10. **Export**: Click the download icon in the top right of the viewer to download your ready-to-cut `.nc` G-code file.
 
 ---
 
 ## 📅 Roadmap (Phase II)
-- **Excel Batch Import**: Drag-and-drop support for `.xlsx` or `.csv` files containing hundreds of cabinet dimensions directly into the workspace.
 - **Persistent Database**: Transitioning the temporary in-memory JSON arrays into a PostgreSQL or SQLite backend to save historic jobs and tooling configurations across sessions.
 - **Multi-sheet Sub-jobs**: Splitting massive architectural jobs into sequentially numbered `.gcode` sheets for extended routing logic.
 ---
