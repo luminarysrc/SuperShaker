@@ -164,8 +164,8 @@ export default function GcodeViewerPanel({
 
         {/* Stats */}
         {displayData && (
-          <div className="flex items-center gap-3 mr-2 bg-[#0a0a0a] px-2.5 py-1.5 rounded-lg border border-white/5 shadow-[inset_0_1px_3px_rgba(0,0,0,0.4)]">
-            <div className="flex gap-2 text-[10px] font-mono text-cnc-text-muted whitespace-nowrap">
+          <div className="flex items-center gap-4 mr-2 bg-[#0a0a0a] px-4 py-2.5 rounded-xl border border-white/10 shadow-[inset_0_1px_3px_rgba(0,0,0,0.6)]">
+            <div className="flex gap-3 text-xs font-mono text-cnc-text-muted whitespace-nowrap">
               <span title="Cut moves">
                 <span className="text-green-400">●</span> {displayData.cut?.length || 0} cut
               </span>
@@ -176,10 +176,10 @@ export default function GcodeViewerPanel({
             
             {currentStats?.total_time_sec > 0 && (
               <>
-                <div className="w-[1px] h-3 bg-white/10" />
-                <div className="flex gap-3 text-[10px] font-mono whitespace-nowrap">
-                  <span title="Total Machining Time Estimate" className="text-[#C6F321] font-bold drop-shadow-[0_0_8px_rgba(198,243,33,0.4)] flex items-center gap-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <div className="w-[1px] h-4 bg-white/10" />
+                <div className="flex gap-4 text-xs font-mono whitespace-nowrap">
+                  <span title="Total Machining Time Estimate" className="text-[#C6F321] font-bold drop-shadow-[0_0_8px_rgba(198,243,33,0.4)] flex items-center gap-1.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                     {currentStats.total_time_formatted}
                   </span>
                   <span title="Cut Time" className="text-green-400">
@@ -191,7 +191,7 @@ export default function GcodeViewerPanel({
                   <span title="Cut Distance" className="text-cyan-400">
                     {currentStats.total_distance_mm > 1000 ? `${(currentStats.total_distance_mm / 1000).toFixed(1)}m` : `${Math.round(currentStats.total_distance_mm)}mm`}
                   </span>
-                  <span title="Tool Changes" className="text-purple-400">
+                  <span title="Tool Changes" className="text-purple-400 font-bold">
                     {currentStats.tool_changes}T
                   </span>
                 </div>
