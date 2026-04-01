@@ -238,7 +238,7 @@ export async function generateFullGcode(sheetIndex = -1) {
 export function parseGcode(gcodeText) {
   const lines = gcodeText.split("\n");
   let x = 0, y = 0, z = 0;
-  let mode = 0;
+  let mode = 0; // 0=rapid, 1=cut, 2=CW, 3=CCW
   const rapid = [];
   const cutByGroup = {
     "Shaker": [],
@@ -265,21 +265,64 @@ export function parseGcode(gcodeText) {
     if (gMatch) {
       const g = parseInt(gMatch[1], 10);
       if (g === 0) mode = 0;
-      else if (g >= 1 && g <= 3) mode = 1;
+      else if (g === 1 || g === 2 || g === 3) mode = g;
     }
 
     const xMatch = line.match(/X([+-]?\d*\.?\d+)/);
     const yMatch = line.match(/Y([+-]?\d*\.?\d+)/);
     const zMatch = line.match(/Z([+-]?\d*\.?\d+)/);
+    const iMatch = line.match(/I([+-]?\d*\.?\d+)/);
+    const jMatch = line.match(/J([+-]?\d*\.?\d+)/);
 
     const nx = xMatch ? parseFloat(xMatch[1]) : x;
     const ny = yMatch ? parseFloat(yMatch[1]) : y;
     const nz = zMatch ? parseFloat(zMatch[1]) : z;
+    const iVal = iMatch ? parseFloat(iMatch[1]) : 0;
+    const jVal = jMatch ? parseFloat(jMatch[1]) : 0;
 
     if (nx !== x || ny !== y || nz !== z) {
-      const segment = [x, y, z, nx, ny, nz];
-      if (mode === 0) rapid.push(segment);
-      else cutByGroup[currentType].push(segment);
+      if (mode === 0 || mode === 1) {
+        const segment = [x, y, z, nx, ny, nz];
+        if (mode === 0) rapid.push(segment);
+        else cutByGroup[currentType].push(segment);
+      } else {
+        // G2 / G3 Circular Arc
+        const cx = x + iVal;
+        const cy = y + jVal;
+        const r = Math.sqrt(iVal * iVal + jVal * jVal);
+        
+        if (r > 0.001) {
+          let angle1 = Math.atan2(y - cy, x - cx);
+          let angle2 = Math.atan2(ny - cy, nx - cx);
+          let deltaAngle = angle2 - angle1;
+          
+          if (mode === 2 && deltaAngle > 0) deltaAngle -= 2 * Math.PI;
+          else if (mode === 3 && deltaAngle < 0) deltaAngle += 2 * Math.PI;
+          
+          if (Math.abs(deltaAngle) < 1e-5) {
+             deltaAngle = mode === 2 ? -2 * Math.PI : 2 * Math.PI;
+          }
+
+          // Segments per full circle (e.g. 180 segments = 2 degrees per segment)
+          const segments = Math.max(4, Math.abs(Math.ceil((deltaAngle / (2 * Math.PI)) * 180)));
+          const angleStep = deltaAngle / segments;
+          
+          let curX = x, curY = y, curZ = z;
+          for (let i = 1; i <= segments; i++) {
+            const curAngle = angle1 + i * angleStep;
+            const ptX = cx + r * Math.cos(curAngle);
+            const ptY = cy + r * Math.sin(curAngle);
+            const t = i / segments;
+            const ptZ = z + (nz - z) * t;
+            
+            cutByGroup[currentType].push([curX, curY, curZ, ptX, ptY, ptZ]);
+            curX = ptX; curY = ptY; curZ = ptZ;
+          }
+        } else {
+          // Fallback to linear
+          cutByGroup[currentType].push([x, y, z, nx, ny, nz]);
+        }
+      }
       x = nx; y = ny; z = nz;
     }
   }

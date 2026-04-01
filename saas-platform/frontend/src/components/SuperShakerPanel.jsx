@@ -691,6 +691,8 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
                 onChange={v => handleSettingsChange("do_rough_pass", v)} />
               <CheckField label="Allow Rotation" checked={settings.allow_rotation}
                 onChange={v => handleSettingsChange("allow_rotation", v)} />
+              <ParamField label={`Nesting Loops`} value={settings.nesting_iterations || 100}
+                onChange={v => handleSettingsChange("nesting_iterations", parseInt(v) || 100)} step="10" />
             </ParamSection>
           </div>
         )}
