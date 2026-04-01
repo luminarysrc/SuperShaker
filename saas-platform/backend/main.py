@@ -53,7 +53,7 @@ _DEFAULT_SETTINGS = {
     "pocket_strategy": "Snake", "spiral_overlap": 50.0,
     "do_pocket": True, "do_corners_rest": True,
     "do_french_miter": True, "do_cutout": True,
-    "do_rough_pass": False, "allow_rotation": True,
+    "do_rough_pass": False, "common_line": False, "allow_rotation": True,
     "small_part_threshold": 0.05,
     "t2_tool_t": "T2", "t2_spindle": 18000, "t2_feed": 6000,
     "t3_tool_t": "T3", "t3_spindle": 18000, "t3_feed": 8000,
@@ -122,6 +122,7 @@ class SettingsModel(BaseModel):
     do_french_miter: Optional[bool] = None
     do_cutout: Optional[bool] = None
     do_rough_pass: Optional[bool] = None
+    common_line: Optional[bool] = None
     allow_rotation: Optional[bool] = None
     small_part_threshold: Optional[float] = None
     t2_tool_t: Optional[str] = None
@@ -455,6 +456,7 @@ async def generate_gcode(req: GenerateRequest):
             do_french_miter=s["do_french_miter"],
             do_cutout=s["do_cutout"],
             do_rough_pass=s["do_rough_pass"],
+            common_line=s.get("common_line", False),
             kerf=s["kerf"], corner_r=s["corner_r"],
             feed_xy=s["feed_xy"],
             t2_tool_t=s["t2_tool_t"], t2_spindle=s["t2_spindle"],

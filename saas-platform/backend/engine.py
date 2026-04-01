@@ -441,6 +441,7 @@ def generate_gcode_for_sheet(
     # Flags
     do_pocket=True, do_corners_rest=True,
     do_french_miter=True, do_cutout=True, do_rough_pass=False,
+    common_line=False,
     # Other tools
     kerf=6.0, corner_r=1.0, feed_xy=8000,
     t2_tool_t="T2", t2_spindle=18000, t2_feed=6000,
@@ -819,6 +820,15 @@ def generate_gcode_for_sheet(
 
     # ── OP4: CUTOUT T3 ─────────────────────────────────────────────
     if do_cutout:
+        if common_line:
+            cl.extend(_generate_common_line_cutout(
+                sheet_doors, sheet_w, sheet_h, margin,
+                t3_tool_t, t3_spindle, t3_feed, kerf, z_top, z_safe, curr_x, curr_y
+            ))
+            cl += ["G0 Z50.0", "G0 Y3000.0", "M5", "M30", "%"]
+            cl = _sanitize_gcode(cl)
+            return "\n".join(cl)
+        
         cl.append("(--- OP4: CUTOUT T3 D6 ---)")
         cl.append(f"{t3_tool_t} M6")
         cl.append(f"S{t3_spindle} M3")
@@ -989,3 +999,116 @@ def _combined_miter_chamfer(buf, xmin, xmax, ymin, ymax,
     buf.append(f"G0 Z{z_safe:.1f}")
     last = corners[order[-1]]
     return last[0], last[1]
+
+
+# ════════════════════════════════════════════════════════════════════════
+#  Helper: Common Line Cutting
+# ════════════════════════════════════════════════════════════════════════
+
+def _generate_common_line_cutout(sheet_doors, sheet_w, sheet_h, margin, t3_tool_t, t3_spindle, t3_feed_cut, kerf, z_top, z_safe, curr_x, curr_y):
+    cl = []
+    cl.append("(--- OP4: CUTOUT T3 D6 [COMMON LINE] ---)")
+    cl.append(f"{t3_tool_t} M6")
+    cl.append(f"S{t3_spindle} M3")
+    cl.append("")
+    
+    lines_h = []
+    lines_v = []
+    
+    # 1. Collect all straight line segments
+    for d in sheet_doors:
+        ox_min = round(d['x'] - 3.0, 3)
+        ox_max = round(d['x'] + d['w'] + 3.0, 3)
+        oy_min = round(d['y'] - 3.0, 3)
+        oy_max = round(d['y'] + d['h'] + 3.0, 3)
+        
+        lines_h.append({'y': oy_min, 'x0': ox_min, 'x1': ox_max})
+        lines_h.append({'y': oy_max, 'x0': ox_min, 'x1': ox_max})
+        lines_v.append({'x': ox_min, 'y0': oy_min, 'y1': oy_max})
+        lines_v.append({'x': ox_max, 'y0': oy_min, 'y1': oy_max})
+        
+    # 2. Merge collinear segments
+    def merge_segments(segments, axis):
+        merged = []
+        groups = {}
+        for seg in segments:
+            k = round(seg['y'] if axis == 'h' else seg['x'], 3)
+            groups.setdefault(k, []).append(seg)
+            
+        for key, items in groups.items():
+            if axis == 'h':
+                items.sort(key=lambda s: s['x0'])
+            else:
+                items.sort(key=lambda s: s['y0'])
+                
+            cur = items[0].copy()
+            for i in range(1, len(items)):
+                nxt = items[i]
+                if axis == 'h':
+                    if nxt['x0'] <= cur['x1'] + 0.5:
+                        cur['x1'] = max(cur['x1'], nxt['x1'])
+                    else:
+                        merged.append(cur)
+                        cur = nxt.copy()
+                else:
+                    if nxt['y0'] <= cur['y1'] + 0.5:
+                        cur['y1'] = max(cur['y1'], nxt['y1'])
+                    else:
+                        merged.append(cur)
+                        cur = nxt.copy()
+            merged.append(cur)
+        return merged
+        
+    merged_h = merge_segments(lines_h, 'h')
+    merged_v = merge_segments(lines_v, 'v')
+    
+    paths = []
+    for h in merged_h:
+        paths.append({'x0': h['x0'], 'y0': h['y'], 'x1': h['x1'], 'y1': h['y']})
+    for v in merged_v:
+        paths.append({'x0': v['x'], 'y0': v['y0'], 'x1': v['x'], 'y1': v['y1']})
+        
+    # 3. Optimize path (nearest neighbor)
+    unvisited = list(paths)
+    optimized_paths = []
+    while unvisited:
+        best_path = None
+        best_dist = float('inf')
+        reverse = False
+        
+        for p in unvisited:
+            d0 = (p['x0'] - curr_x)**2 + (p['y0'] - curr_y)**2
+            d1 = (p['x1'] - curr_x)**2 + (p['y1'] - curr_y)**2
+            if d0 < best_dist:
+                best_dist, best_path, reverse = d0, p, False
+            if d1 < best_dist:
+                best_dist, best_path, reverse = d1, p, True
+                
+        if reverse:
+            optimized_paths.append({'x0': best_path['x1'], 'y0': best_path['y1'], 'x1': best_path['x0'], 'y1': best_path['y0']})
+            curr_x, curr_y = best_path['x0'], best_path['y0']
+        else:
+            optimized_paths.append({'x0': best_path['x0'], 'y0': best_path['y0'], 'x1': best_path['x1'], 'y1': best_path['y1']})
+            curr_x, curr_y = best_path['x1'], best_path['y1']
+        unvisited.remove(best_path)
+            
+    # 4. Generate segment instructions
+    ramp_feed = max(600, t3_feed_cut // 5)
+    for p in optimized_paths:
+        cl.append(f"G0 X{p['x0']:.3f} Y{p['y0']:.3f} Z{z_top + 5.0}")
+        cl.append(f"G1 Z{z_top:.3f} F2000")
+        
+        # Simple ramp-in
+        dist = math.sqrt((p['x1'] - p['x0'])**2 + (p['y1'] - p['y0'])**2)
+        ramp_len = min(24.0, dist / 2.0)
+        dx = (p['x1'] - p['x0']) / dist if dist > 0 else 0
+        dy = (p['y1'] - p['y0']) / dist if dist > 0 else 0
+        
+        rx = p['x0'] + dx * ramp_len
+        ry = p['y0'] + dy * ramp_len
+        cl.append(f"G1 X{rx:.3f} Y{ry:.3f} Z{-0.2:.3f} F{ramp_feed}")
+        cl.append(f"G1 X{p['x1']:.3f} Y{p['y1']:.3f} F{t3_feed_cut}")
+        cl.append(f"G0 Z{z_safe}")
+        
+    cl.append("")
+    return cl

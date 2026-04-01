@@ -662,6 +662,8 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
                 onChange={v => handleSettingsChange("do_french_miter", v)} />
               <CheckField label="Contour Cut (T3)" checked={settings.do_cutout}
                 onChange={v => handleSettingsChange("do_cutout", v)} />
+              <CheckField label="Common Line" checked={settings.common_line}
+                onChange={v => handleSettingsChange("common_line", v)} disabled={!settings.do_cutout} />
               <CheckField label="Rough Pass" checked={settings.do_rough_pass}
                 onChange={v => handleSettingsChange("do_rough_pass", v)} />
               <CheckField label="Allow Rotation" checked={settings.allow_rotation}
