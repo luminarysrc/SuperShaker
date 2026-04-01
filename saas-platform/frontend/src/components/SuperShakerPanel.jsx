@@ -25,7 +25,6 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
   const [editingCell, setEditingCell] = useState(null);
   const [editingValue, setEditingValue] = useState("");
   // Unit system: false = mm, true = inch
-  const [edgeBanding, setEdgeBanding] = useState({});
   const [useInch, setUseInch] = useState(false);
   const MM_PER_INCH = 25.4;
   const toDisplay = (mm) => useInch ? +(mm / MM_PER_INCH).toFixed(3) : mm;
@@ -107,16 +106,7 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
     }
   }, []);
 
-  // ── Edge Banding update ───────────────────────────────
-  const handleEdgeBandingChange = (id, side, checked) => {
-    setEdgeBanding(prev => ({
-      ...prev,
-      [id]: {
-        ...(prev[id] || {}),
-        [side]: checked
-      }
-    }));
-  };
+
 
   // ── Clear all ─────────────────────────────────────────
   const handleClear = useCallback(async () => {
@@ -124,7 +114,6 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
       await clearDoors();
       setDoors([]);
       setNestingResult(null);
-      setEdgeBanding({});
     } catch (e) {
       setError(e.message);
     }
@@ -177,13 +166,13 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
     setIsLoading("labels");
     setError(null);
     try {
-      await downloadLabelsPdf(edgeBanding);
+      await downloadLabelsPdf();
     } catch (e) {
       setError(e.message);
     } finally {
       setIsLoading("");
     }
-  }, [edgeBanding]);
+  }, []);
 
   // ── Generate G-code ───────────────────────────────────
   const handleGenerate = useCallback(async () => {
@@ -498,7 +487,6 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
                         <th className="py-1.5 px-2 text-center font-medium">H</th>
                         <th className="py-1.5 px-2 text-center font-medium">Qty</th>
                         <th className="py-1.5 px-2 text-center font-medium">Type</th>
-                        <th className="py-1.5 px-2 text-center font-medium">Edge Banding</th>
                         <th className="py-1.5 px-1 w-6"></th>
                       </tr>
                     </thead>
@@ -555,19 +543,7 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
                               </span>
                             )}
                           </td>
-                          <td className="py-1.5 px-2">
-                            <div className="flex justify-center gap-1">
-                              {["top", "bottom", "left", "right"].map(side => (
-                                <label key={side} className="flex flex-col items-center cursor-pointer group">
-                                  <span className="text-[8px] uppercase text-cnc-text-muted group-hover:text-cnc-text">{side[0]}</span>
-                                  <input type="checkbox"
-                                    checked={edgeBanding[d.id]?.[side] || false}
-                                    onChange={e => handleEdgeBandingChange(d.id, side, e.target.checked)}
-                                    className="accent-cnc-accent w-2.5 h-2.5" />
-                                </label>
-                              ))}
-                            </div>
-                          </td>
+
                           <td className="py-1.5 px-1">
                             <button onClick={() => handleDeleteDoor(d.id)}
                               className="text-cnc-text-muted hover:text-red-400 text-xs transition-colors">

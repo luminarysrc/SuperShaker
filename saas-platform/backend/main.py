@@ -150,16 +150,9 @@ class CalcParamsRequest(BaseModel):
 class GenerateRequest(BaseModel):
     sheet_index: int = Field(0, description="0-based sheet index, or -1 for all sheets")
 
-class EdgeBanding(BaseModel):
-    top: bool = False
-    bottom: bool = False
-    left: bool = False
-    right: bool = False
-
 class LabelRequest(BaseModel):
     order_id: str = ""
     doors: list[dict]
-    edge_banding: Dict[str, EdgeBanding] = {}
 
 
 # ════════════════════════════════════════════════════════════
@@ -409,8 +402,7 @@ async def create_labels_pdf_get():
     order_id = _state["settings"].get("order_id", "")
     req = LabelRequest(
         order_id=order_id,
-        doors=_state["doors"],
-        edge_banding={}
+        doors=_state["doors"]
     )
     pdf_buffer = generate_labels_pdf(req)
     return Response(

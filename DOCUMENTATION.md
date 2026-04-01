@@ -45,7 +45,6 @@ The platform uses the **Maximal Rectangles** heuristic to pack part rectangles i
    - **Shaker**: Standard frame-and-panel.
    - **Shaker Step**: Layered Shaker design with an additional internal step.
    - **Slab**: Simple contour cutout.
-3. **Edge Banding**: Select T/B/L/R checkboxes in the parts table to mark which edges require banding.
 
 ### Machine Profiles
 - Use the **Gear Icon (⚙️)** in the sidebar to manage CNC configurations.

@@ -106,7 +106,7 @@ To start the full prototype locally (both frontend and backend simultaneously), 
 4. **Add Parts**: In the "Workflow" tab on the left, add desired items by specifying Width, Height, Quantity, and Type (e.g., Shaker).
 5. **Configure Parameters**: Switch to the "Parameters" and "Tool T6" tabs to adjust your kerf, stepover, tooling feeds/speeds, and chamfer depths. Settings are automatically saved to your active profile.
 6. **Batch Import (Optional)**: Click the **Excel Import** icon in the Right Panel's toolbar or simply **Drag and Drop** an `.xlsx` or `.csv` file anywhere onto the 3D Viewer. The system will automatically parse the file and add the parts to your list.
-7. **Export PDF Labels**: Configure edge banding logic via the parts table and click `Export PDF Labels` to automatically generate Avery-style barcode labels.
+7. **Export PDF Labels**: Click `Export PDF Labels` to automatically generate Avery-style barcode labels.
 8. **Run Nesting**: Click `Run Nesting` to view a 2D thumbnail preview of your parts optimally packed onto your configured MDF sheet dimension.
 9. **Generate G-Code**: Click `Generate G-code` to process the job. The mathematical engine will formulate thousands of G-code lines in milliseconds and pass them to the 3D Viewer on the right panel.
 10. **Export**: Click the download icon in the top right of the viewer to download your ready-to-cut `.nc` G-code file.

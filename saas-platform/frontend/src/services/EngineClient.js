@@ -147,7 +147,7 @@ export async function calcParams(params) {
 //  Labels
 // ═══════════════════════════════════════════════════════════
 
-export async function downloadLabelsPdf(edgeBanding = {}) {
+export async function downloadLabelsPdf() {
   // First we need orderId and doors
   const [settings, doors] = await Promise.all([
     getSettings(),
@@ -158,8 +158,7 @@ export async function downloadLabelsPdf(edgeBanding = {}) {
 
   const payload = {
     order_id: orderId,
-    doors: doors,
-    edge_banding: edgeBanding
+    doors: doors
   };
 
   const r = await fetch(`${API_BASE}/labels/pdf`, {

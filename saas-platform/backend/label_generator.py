@@ -22,7 +22,6 @@ def generate_labels_pdf(request):
 
     order_id = request.order_id or "ORDER"
     doors = request.doors
-    edge_banding = request.edge_banding
 
     # Flatten doors based on qty
     labels_to_print = []
@@ -43,13 +42,13 @@ def generate_labels_pdf(request):
         x = MARGIN_LEFT + col * (LABEL_WIDTH + GUTTER_X)
         y = PAGE_HEIGHT - MARGIN_TOP - (row + 1) * LABEL_HEIGHT
 
-        draw_label(c, x, y, door, order_id, edge_banding.get(str(door.get("id"))))
+        draw_label(c, x, y, door, order_id)
 
     c.save()
     buffer.seek(0)
     return buffer
 
-def draw_label(c, x, y, door, order_id, edge):
+def draw_label(c, x, y, door, order_id):
     # Padding inside label
     pad = 0.1 * inch
 
@@ -106,47 +105,3 @@ def draw_label(c, x, y, door, order_id, edge):
 
     # Reset color
     c.setFillColorRGB(0, 0, 0)
-
-    # 5. Edge banding indicators (T/B/L/R)
-    # Small box with letters at top right corner of label
-    eb_x = x + LABEL_WIDTH - pad - 0.6*inch
-    eb_y = y + LABEL_HEIGHT - pad - 0.3*inch
-
-    c.setFont("Helvetica", 5)
-    c.drawString(eb_x, eb_y, "Edge:")
-
-    # Draw T/B/L/R boxes
-    box_size = 0.1 * inch
-    c.setLineWidth(0.5)
-
-    # Default is False
-    top = getattr(edge, 'top', False) if edge else False
-    bottom = getattr(edge, 'bottom', False) if edge else False
-    left = getattr(edge, 'left', False) if edge else False
-    right = getattr(edge, 'right', False) if edge else False
-
-    def draw_eb_box(bx, by, label, checked):
-        if checked:
-            c.setFillColorRGB(0, 0, 0)
-            c.rect(bx, by, box_size, box_size, fill=1)
-            c.setFillColorRGB(1, 1, 1)
-        else:
-            c.setFillColorRGB(1, 1, 1)
-            c.rect(bx, by, box_size, box_size, fill=1)
-            c.setFillColorRGB(0, 0, 0)
-
-        c.drawCentredString(bx + box_size/2, by + 0.02*inch, label)
-        c.setFillColorRGB(0, 0, 0)
-
-    # Layout:
-    #   T
-    # L   R
-    #   B
-
-    center_x = eb_x + 0.3*inch
-    center_y = eb_y - 0.1*inch
-
-    draw_eb_box(center_x, center_y + box_size, "T", top)
-    draw_eb_box(center_x, center_y - box_size, "B", bottom)
-    draw_eb_box(center_x - box_size, center_y, "L", left)
-    draw_eb_box(center_x + box_size, center_y, "R", right)
