@@ -54,7 +54,7 @@ _DEFAULT_SETTINGS = {
     "do_pocket": True, "do_corners_rest": True,
     "do_french_miter": True, "do_cutout": True,
     "do_rough_pass": False, "common_line": False, "allow_rotation": True,
-    "small_part_threshold": 0.05,
+    "small_part_threshold": 0.05, "nesting_iterations": 100,
     "t2_tool_t": "T2", "t2_spindle": 18000, "t2_feed": 6000,
     "t3_tool_t": "T3", "t3_spindle": 18000, "t3_feed": 8000,
     "t5_tool_t": "T5", "t5_spindle": 18000, "t5_feed": 8000,
@@ -125,6 +125,7 @@ class SettingsModel(BaseModel):
     common_line: Optional[bool] = None
     allow_rotation: Optional[bool] = None
     small_part_threshold: Optional[float] = None
+    nesting_iterations: Optional[int] = None
     t2_tool_t: Optional[str] = None
     t2_spindle: Optional[int] = None
     t2_feed: Optional[int] = None
@@ -381,6 +382,7 @@ async def nest():
         margin=s["margin"], kerf=s["kerf"],
         allow_rotation=s["allow_rotation"],
         small_part_threshold=s["small_part_threshold"],
+        nesting_iterations=s.get("nesting_iterations", 100),
     )
     _state["nesting_result"] = result
     return result
@@ -413,6 +415,28 @@ async def create_labels_pdf_get():
         headers={"Content-Disposition": f"attachment; filename=labels_{order_id}.pdf"}
     )
 
+
+# ── Cutting Map PDF ──────────────────────────────────────
+
+from cutting_map import generate_cutting_map_pdf
+
+@app.get("/cutting-map/pdf")
+async def create_cutting_map_pdf():
+    if not _state["nesting_result"] or not _state["nesting_result"]["sheets"]:
+        raise HTTPException(400, "No nesting result. Run nesting first.")
+    s = _state["settings"]
+    order_id = s.get("order_id", "")
+    pdf_buffer = generate_cutting_map_pdf(
+        sheets=_state["nesting_result"]["sheets"],
+        sheet_w=s["sheet_w"], sheet_h=s["sheet_h"],
+        mat_z=s["mat_z"], margin=s["margin"],
+        order_id=order_id,
+    )
+    return Response(
+        content=pdf_buffer.getvalue(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=CuttingMap_{order_id}.pdf"}
+    )
 
 # ── G-code Generation ────────────────────────────────────
 

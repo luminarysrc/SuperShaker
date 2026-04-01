@@ -6,7 +6,7 @@ import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   listDoors, addDoor, deleteDoor, clearDoors, updateDoor,
   getSettings, updateSettings, runNesting, generateFullGcode,
-  parseGcode, downloadGcode, downloadLabelsPdf
+  parseGcode, downloadGcode, downloadLabelsPdf, downloadCuttingMapPdf
 } from "../services/EngineClient.js";
 
 export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, settingsVersion, doorsVersion }) {
@@ -167,6 +167,19 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
     setError(null);
     try {
       await downloadLabelsPdf();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setIsLoading("");
+    }
+  }, []);
+
+  // ── Download Cutting Map PDF ──────────────────────────
+  const handleCuttingMap = useCallback(async () => {
+    setIsLoading("cuttingmap");
+    setError(null);
+    try {
+      await downloadCuttingMapPdf();
     } catch (e) {
       setError(e.message);
     } finally {
@@ -580,6 +593,16 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
                   <><Spinner /> Generating PDF...</>
                 ) : (
                   <>Export PDF Labels</>
+                )}
+              </button>
+
+              <button onClick={handleCuttingMap}
+                disabled={!!isLoading || !nestingResult}
+                className="cnc-btn-ghost w-full text-sm py-2.5 flex items-center justify-center gap-2 mt-2 text-emerald-400 border-emerald-400/30 hover:bg-emerald-400/10">
+                {isLoading === "cuttingmap" ? (
+                  <><Spinner /> Generating PDF...</>
+                ) : (
+                  <>Cutting Map PDF</>
                 )}
               </button>
 

@@ -180,6 +180,24 @@ export async function downloadLabelsPdf() {
   URL.revokeObjectURL(url);
 }
 
+export async function downloadCuttingMapPdf() {
+  const settings = await getSettings();
+  const orderId = settings.order_id || "ORDER";
+
+  const r = await fetch(`${API_BASE}/cutting-map/pdf`);
+  if (!r.ok) {
+    throw new Error(`API error: ${r.status}`);
+  }
+
+  const blob = await r.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `CuttingMap_${orderId}.pdf`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // ═══════════════════════════════════════════════════════════
 //  Nesting
 // ═══════════════════════════════════════════════════════════

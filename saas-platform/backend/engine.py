@@ -255,12 +255,16 @@ def calc_t6_params(D, z, tool_type, pass_type, doc):
 # ════════════════════════════════════════════════════════════════════════
 
 def do_nesting(doors, sheet_w, sheet_h, margin, kerf,
-               allow_rotation=True, small_part_threshold=0.05):
+               allow_rotation=True, small_part_threshold=0.05,
+               nesting_iterations=100):
     """
-    Run MaxRects two-phase nesting.
+    Run MaxRects Monte Carlo nesting optimizer.
     doors: list of {'id', 'w', 'h', 'qty', 'type'}
+    nesting_iterations: number of random permutations to try (first 6 are deterministic).
     Returns: list of sheets, each sheet is a list of placed parts.
     """
+    import random
+
     work_w = sheet_w - 2 * margin
     work_h = sheet_h - 2 * margin
     thr_mm2 = small_part_threshold * 1e6
@@ -274,101 +278,119 @@ def do_nesting(doors, sheet_w, sheet_h, margin, kerf,
                 'orig_w': d['w'], 'orig_h': d['h'],
             })
 
-    sort_funcs = [
-        lambda x: x['w'] * x['h'],
-        lambda x: max(x['w'], x['h']),
-        lambda x: x['w'] + x['h'],
+    base_funcs = [
+        lambda w, h: w * h,
+        lambda w, h: max(w, h),
+        lambda w, h: w + h,
     ]
+
     best_sheets = []
     min_sheets = float('inf')
-    best_density = 0
+    best_free_last = -1
 
-    for sf in sort_funcs:
-        for pref_rot in [False, True]:
-            items = []
-            for item in flat_list:
-                w, h = item['w'], item['h']
-                if allow_rotation and pref_rot and w < h:
-                    w, h = h, w
-                elif allow_rotation and not pref_rot and h < w:
-                    w, h = h, w
-                items.append({
-                    'id': item['id'], 'type': item['type'],
-                    'w': w, 'h': h,
-                    'orig_w': item['orig_w'], 'orig_h': item['orig_h'],
-                })
+    iterations = max(6, nesting_iterations)
 
-            work_cx = work_w / 2
-            work_cy = work_h / 2
-            large_items = sorted(
-                [i for i in items if i['orig_w'] * i['orig_h'] >= thr_mm2],
-                key=sf, reverse=True)
-            small_items = sorted(
-                [i for i in items if i['orig_w'] * i['orig_h'] < thr_mm2],
-                key=sf, reverse=True)
+    for i in range(iterations):
+        # First 6 iterations are deterministic (backward-compatible)
+        is_deterministic = i < 6
+        sf_idx = (i % 6) // 2
+        pref_rot = (i % 2) == 1 if is_deterministic else random.choice([False, True])
 
-            packed_sheets = []
-            while large_items or small_items:
-                packer = MaxRectsPacker(work_w, work_h)
-                cur = []
-                rem_l = []
-                rem_s = []
+        items = []
+        for item in flat_list:
+            w, h = item['w'], item['h']
+            if allow_rotation and pref_rot and w < h:
+                w, h = h, w
+            elif allow_rotation and not pref_rot and h < w:
+                w, h = h, w
 
-                for item in large_items:
+            weight = base_funcs[sf_idx](w, h)
+
+            if not is_deterministic:
+                weight *= random.uniform(0.7, 1.3)  # Mutate priority ±30%
+                if allow_rotation and random.random() < 0.15:
+                    w, h = h, w  # Individual rotation flip 15% chance
+
+            items.append({
+                'id': item['id'], 'type': item['type'],
+                'w': w, 'h': h,
+                'orig_w': item['orig_w'], 'orig_h': item['orig_h'],
+                'sort_weight': weight,
+            })
+
+        work_cx = work_w / 2
+        work_cy = work_h / 2
+        large_items = sorted(
+            [it for it in items if it['orig_w'] * it['orig_h'] >= thr_mm2],
+            key=lambda x: x['sort_weight'], reverse=True)
+        small_items = sorted(
+            [it for it in items if it['orig_w'] * it['orig_h'] < thr_mm2],
+            key=lambda x: x['sort_weight'], reverse=True)
+
+        packed_sheets = []
+        while large_items or small_items:
+            packer = MaxRectsPacker(work_w, work_h)
+            cur = []
+            rem_l = []
+            rem_s = []
+
+            for item in large_items:
+                pos = packer.pack(item['w'], item['h'])
+                if pos is None and allow_rotation:
+                    pos = packer.pack(item['h'], item['w'])
+                    if pos is not None:
+                        item['w'], item['h'] = item['h'], item['w']
+                if pos is not None:
+                    cur.append({
+                        'id': item['id'], 'type': item['type'],
+                        'x': pos['x'] + margin, 'y': pos['y'] + margin,
+                        'w': item['w'] - kerf, 'h': item['h'] - kerf,
+                        'orig_w': item['orig_w'], 'orig_h': item['orig_h'],
+                        'is_small': False,
+                    })
+                else:
+                    rem_l.append(item)
+
+            for item in small_items:
+                pos = packer.pack_biased(item['w'], item['h'], work_cx, work_cy)
+                if pos is None:
                     pos = packer.pack(item['w'], item['h'])
-                    if pos is None and allow_rotation:
-                        pos = packer.pack(item['h'], item['w'])
-                        if pos is not None:
-                            item['w'], item['h'] = item['h'], item['w']
-                    if pos is not None:
-                        cur.append({
-                            'id': item['id'], 'type': item['type'],
-                            'x': pos['x'] + margin, 'y': pos['y'] + margin,
-                            'w': item['w'] - kerf, 'h': item['h'] - kerf,
-                            'orig_w': item['orig_w'], 'orig_h': item['orig_h'],
-                            'is_small': False,
-                        })
-                    else:
-                        rem_l.append(item)
-
-                for item in small_items:
-                    pos = packer.pack_biased(item['w'], item['h'], work_cx, work_cy)
+                if pos is None and allow_rotation:
+                    pos = packer.pack_biased(item['h'], item['w'], work_cx, work_cy)
                     if pos is None:
-                        pos = packer.pack(item['w'], item['h'])
-                    if pos is None and allow_rotation:
-                        pos = packer.pack_biased(item['h'], item['w'], work_cx, work_cy)
-                        if pos is None:
-                            pos = packer.pack(item['h'], item['w'])
-                        if pos is not None:
-                            item['w'], item['h'] = item['h'], item['w']
+                        pos = packer.pack(item['h'], item['w'])
                     if pos is not None:
-                        cur.append({
-                            'id': item['id'], 'type': item['type'],
-                            'x': pos['x'] + margin, 'y': pos['y'] + margin,
-                            'w': item['w'] - kerf, 'h': item['h'] - kerf,
-                            'orig_w': item['orig_w'], 'orig_h': item['orig_h'],
-                            'is_small': True,
-                        })
-                    else:
-                        rem_s.append(item)
+                        item['w'], item['h'] = item['h'], item['w']
+                if pos is not None:
+                    cur.append({
+                        'id': item['id'], 'type': item['type'],
+                        'x': pos['x'] + margin, 'y': pos['y'] + margin,
+                        'w': item['w'] - kerf, 'h': item['h'] - kerf,
+                        'orig_w': item['orig_w'], 'orig_h': item['orig_h'],
+                        'is_small': True,
+                    })
+                else:
+                    rem_s.append(item)
 
-                if not cur:
-                    break
-                packed_sheets.append(cur)
-                large_items = rem_l
-                small_items = rem_s
+            if not cur:
+                break
+            packed_sheets.append(cur)
+            large_items = rem_l
+            small_items = rem_s
 
-            density = 0
-            if packed_sheets:
-                au = sum((r['w'] + kerf) * (r['h'] + kerf) for r in packed_sheets[0])
-                density = au / (work_w * work_h)
-            if len(packed_sheets) < min_sheets:
-                min_sheets = len(packed_sheets)
-                best_sheets = packed_sheets
-                best_density = density
-            elif len(packed_sheets) == min_sheets and density > best_density:
-                best_sheets = packed_sheets
-                best_density = density
+        # Selection: fewest sheets → max free area on last sheet
+        free_last = 0
+        if packed_sheets:
+            used_last = sum((r['w'] + kerf) * (r['h'] + kerf) for r in packed_sheets[-1])
+            free_last = work_w * work_h - used_last
+
+        if len(packed_sheets) < min_sheets:
+            min_sheets = len(packed_sheets)
+            best_sheets = packed_sheets
+            best_free_last = free_last
+        elif len(packed_sheets) == min_sheets and free_last > best_free_last:
+            best_sheets = packed_sheets
+            best_free_last = free_last
 
     # Calculate stats
     total_parts = sum(len(s) for s in best_sheets)
@@ -866,12 +888,13 @@ def generate_gcode_for_sheet(
 
             def zigzag(cl, axis, p0, p1, z_start, z_target, ramp_len, ramp_dz, ramp_feed):
                 z = z_start
-                direction = 1
+                direction = 1 if p1 >= p0 else -1  # FIX v5.4.3: handle R/B entry
                 pos = p0
                 while z > z_target:
                     z_next = max(z - ramp_dz, z_target)
                     pos_next = pos + direction * ramp_len
-                    pos_next = max(min(pos_next, p1), p0)
+                    lo, hi = min(p0, p1), max(p0, p1)  # FIX: works for both directions
+                    pos_next = max(lo, min(pos_next, hi))
                     if axis == 'Y':
                         cl.append(f"G1 Y{pos_next:.3f} Z{z_next:.3f} F{ramp_feed}")
                     else:
