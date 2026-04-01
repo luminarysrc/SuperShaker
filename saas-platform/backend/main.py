@@ -14,6 +14,7 @@ from typing import Optional, Dict
 
 from engine import do_nesting, generate_gcode_for_sheet, calc_t6_params
 from label_generator import generate_labels_pdf
+from time_estimator import estimate_machining_time
 
 # ════════════════════════════════════════════════════════════
 #  FastAPI Application
@@ -465,6 +466,7 @@ async def generate_gcode(req: GenerateRequest):
             order_id=s["order_id"],
         )
         line_count = len([l for l in gcode.split("\n") if l.strip() and not l.startswith("(")])
+        time_stats = estimate_machining_time(gcode)
         results.append({
             "sheet_index": idx,
             "gcode": gcode,
@@ -473,6 +475,7 @@ async def generate_gcode(req: GenerateRequest):
                 "parts_on_sheet": len(sheets[idx]),
                 "sheet_w": s["sheet_w"],
                 "sheet_h": s["sheet_h"],
+                **time_stats,
             },
         })
 
