@@ -256,7 +256,7 @@ def calc_t6_params(D, z, tool_type, pass_type, doc):
 
 def do_nesting(doors, sheet_w, sheet_h, margin, kerf,
                allow_rotation=True, small_part_threshold=0.05,
-               nesting_iterations=100):
+               nesting_iterations=100, sheet_grain="None"):
     """
     Run MaxRects Monte Carlo nesting optimizer.
     doors: list of {'id', 'w', 'h', 'qty', 'type'}
@@ -276,6 +276,7 @@ def do_nesting(doors, sheet_w, sheet_h, margin, kerf,
                 'id': d['id'], 'type': d['type'],
                 'w': d['w'] + kerf, 'h': d['h'] + kerf,
                 'orig_w': d['w'], 'orig_h': d['h'],
+                'grain': d.get('grain', 'None'),
             })
 
     base_funcs = [
@@ -299,23 +300,38 @@ def do_nesting(doors, sheet_w, sheet_h, margin, kerf,
         items = []
         for item in flat_list:
             w, h = item['w'], item['h']
-            if allow_rotation and pref_rot and w < h:
-                w, h = h, w
-            elif allow_rotation and not pref_rot and h < w:
-                w, h = h, w
+            
+            can_rotate = allow_rotation
+            must_rotate = False
+            part_grain = item['grain']
+            if sheet_grain != "None" and part_grain != "None":
+                can_rotate = False
+                if sheet_grain != part_grain:
+                    must_rotate = True
 
             weight = base_funcs[sf_idx](w, h)
 
+            final_w, final_h = w, h
+            if not can_rotate:
+                if must_rotate:
+                    final_w, final_h = h, w
+            else:
+                if allow_rotation and pref_rot and w < h:
+                    final_w, final_h = h, w
+                elif allow_rotation and not pref_rot and h < w:
+                    final_w, final_h = h, w
+
             if not is_deterministic:
                 weight *= random.uniform(0.7, 1.3)  # Mutate priority ±30%
-                if allow_rotation and random.random() < 0.15:
-                    w, h = h, w  # Individual rotation flip 15% chance
+                if can_rotate and random.random() < 0.15:
+                    final_w, final_h = final_h, final_w  # Individual rotation flip 15% chance
 
             items.append({
                 'id': item['id'], 'type': item['type'],
-                'w': w, 'h': h,
+                'w': final_w, 'h': final_h,
                 'orig_w': item['orig_w'], 'orig_h': item['orig_h'],
                 'sort_weight': weight,
+                'can_rotate': can_rotate,
             })
 
         work_cx = work_w / 2
@@ -336,7 +352,7 @@ def do_nesting(doors, sheet_w, sheet_h, margin, kerf,
 
             for item in large_items:
                 pos = packer.pack(item['w'], item['h'])
-                if pos is None and allow_rotation:
+                if pos is None and item['can_rotate']:
                     pos = packer.pack(item['h'], item['w'])
                     if pos is not None:
                         item['w'], item['h'] = item['h'], item['w']
@@ -355,7 +371,7 @@ def do_nesting(doors, sheet_w, sheet_h, margin, kerf,
                 pos = packer.pack_biased(item['w'], item['h'], work_cx, work_cy)
                 if pos is None:
                     pos = packer.pack(item['w'], item['h'])
-                if pos is None and allow_rotation:
+                if pos is None and item['can_rotate']:
                     pos = packer.pack_biased(item['h'], item['w'], work_cx, work_cy)
                     if pos is None:
                         pos = packer.pack(item['h'], item['w'])

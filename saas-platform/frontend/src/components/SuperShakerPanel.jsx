@@ -20,7 +20,7 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
   const canvasRef = useRef(null);
 
   // Add door form state
-  const [newDoor, setNewDoor] = useState({ w: 400, h: 600, qty: 4, type: "Shaker" });
+  const [newDoor, setNewDoor] = useState({ w: 400, h: 600, qty: 4, type: "Shaker", grain: "None" });
   // Inline editing: { id, field }
   const [editingCell, setEditingCell] = useState(null);
   const [editingValue, setEditingValue] = useState("");
@@ -647,6 +647,16 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
         {activeSection === "params" && settings && (
           <div className="space-y-4 animate-fade-in">
             <ParamSection title="Material & Sheet">
+              <div className="flex items-center gap-2 mb-2">
+                <label className="text-xs text-cnc-text-muted w-28">Sheet Grain</label>
+                <select value={settings.sheet_grain || "None"}
+                  onChange={e => handleSettingsChange("sheet_grain", e.target.value)}
+                  className="cnc-input text-xs py-1.5 flex-1">
+                  <option value="None" className="bg-[#1A1A1A] text-white">None</option>
+                  <option value="Horizontal" className="bg-[#1A1A1A] text-white">Horizontal</option>
+                  <option value="Vertical" className="bg-[#1A1A1A] text-white">Vertical</option>
+                </select>
+              </div>
               <ParamField label={`Sheet W (${unitLabel})`} value={toDisplay(settings.sheet_w)}
                 onChange={v => handleSettingsChange("sheet_w", fromDisplay(v))} />
               <ParamField label={`Sheet H (${unitLabel})`} value={toDisplay(settings.sheet_h)}

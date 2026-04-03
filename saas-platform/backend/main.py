@@ -62,6 +62,7 @@ _DEFAULT_SETTINGS = {
     "label_format": "Roll Printer",
     "label_w": 62.0,
     "label_h": 29.0,
+    "sheet_grain": "None",
 }
 
 _state = {
@@ -88,6 +89,7 @@ class DoorIn(BaseModel):
     h: float = Field(..., description="Height mm")
     qty: int = Field(1, description="Quantity")
     type: str = Field("Shaker", description="Shaker | Shaker Step | Slab")
+    grain: str = Field("None", description="Horizontal | Vertical | None")
 
 
 class DoorOut(BaseModel):
@@ -96,6 +98,7 @@ class DoorOut(BaseModel):
     h: float
     qty: int
     type: str
+    grain: str
 
 
 class SettingsModel(BaseModel):
@@ -142,6 +145,7 @@ class SettingsModel(BaseModel):
     label_format: Optional[str] = None
     label_w: Optional[float] = None
     label_h: Optional[float] = None
+    sheet_grain: Optional[str] = None
 
 
 class ProfileIn(BaseModel):
@@ -186,6 +190,7 @@ async def add_door(door: DoorIn):
         "id": _state["next_id"],
         "w": door.w, "h": door.h,
         "qty": door.qty, "type": door.type,
+        "grain": door.grain,
     }
     _state["next_id"] += 1
     _state["doors"].append(d)
@@ -197,7 +202,7 @@ async def add_door(door: DoorIn):
 async def update_door(door_id: int, door: DoorIn):
     for d in _state["doors"]:
         if d["id"] == door_id:
-            d.update({"w": door.w, "h": door.h, "qty": door.qty, "type": door.type})
+            d.update({"w": door.w, "h": door.h, "qty": door.qty, "type": door.type, "grain": door.grain})
             _state["nesting_result"] = None
             return d
     raise HTTPException(404, f"Door {door_id} not found")
@@ -244,6 +249,7 @@ async def import_batch(file: UploadFile = File(...)):
     h_col = get_col(["h", "height", "y"])
     qty_col = get_col(["qty", "quantity", "count", "num", "amount"])
     type_col = get_col(["type", "style", "facade"])
+    grain_col = get_col(["grain", "direction"])
     
     if not w_col or not h_col:
         raise HTTPException(400, "Excel/CSV must contain 'W'/'Width' and 'H'/'Height' columns.")
@@ -272,10 +278,21 @@ async def import_batch(file: UploadFile = File(...)):
                 elif "Slab" in t_val or "Flat" in t_val:
                     d_type = "Slab"
 
+            d_grain = "None"
+            if grain_col and not pd.isna(row[grain_col]):
+                g_val = str(row[grain_col]).strip().title()
+                if g_val in ["Horizontal", "Vertical", "None"]:
+                    d_grain = g_val
+                elif "Horiz" in g_val:
+                    d_grain = "Horizontal"
+                elif "Vert" in g_val:
+                    d_grain = "Vertical"
+
             d = {
                 "id": _state["next_id"],
                 "w": w, "h": h,
                 "qty": qty, "type": d_type,
+                "grain": d_grain,
             }
             _state["next_id"] += 1
             _state["doors"].append(d)
@@ -389,6 +406,7 @@ async def nest():
         allow_rotation=s["allow_rotation"],
         small_part_threshold=s["small_part_threshold"],
         nesting_iterations=s.get("nesting_iterations", 100),
+        sheet_grain=s.get("sheet_grain", "None"),
     )
     _state["nesting_result"] = result
     return result
