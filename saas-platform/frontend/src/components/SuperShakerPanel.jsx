@@ -694,6 +694,26 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
               <ParamField label={`Nesting Loops`} value={settings.nesting_iterations || 100}
                 onChange={v => handleSettingsChange("nesting_iterations", parseInt(v) || 100)} step="10" />
             </ParamSection>
+
+            <ParamSection title="PDF Labels Export">
+              <div className="flex items-center gap-2 mb-2">
+                <label className="text-xs text-cnc-text-muted w-28">Format</label>
+                <select value={settings.label_format || "Roll Printer"}
+                  onChange={e => handleSettingsChange("label_format", e.target.value)}
+                  className="cnc-input text-xs py-1.5 flex-1">
+                  <option value="Avery 5160" className="bg-[#1A1A1A] text-white">Avery 5160 (Letter)</option>
+                  <option value="Roll Printer" className="bg-[#1A1A1A] text-white">Roll Printer</option>
+                </select>
+              </div>
+              {settings.label_format === "Roll Printer" && (
+                <>
+                  <ParamField label={`Label W (${unitLabel})`} value={toDisplay(settings.label_w ?? 62.0)}
+                    onChange={v => handleSettingsChange("label_w", fromDisplay(v))} step="1" />
+                  <ParamField label={`Label H (${unitLabel})`} value={toDisplay(settings.label_h ?? 29.0)}
+                    onChange={v => handleSettingsChange("label_h", fromDisplay(v))} step="1" />
+                </>
+              )}
+            </ParamSection>
           </div>
         )}
 

@@ -59,6 +59,9 @@ _DEFAULT_SETTINGS = {
     "t3_tool_t": "T3", "t3_spindle": 18000, "t3_feed": 8000,
     "t5_tool_t": "T5", "t5_spindle": 18000, "t5_feed": 8000,
     "order_id": "",
+    "label_format": "Roll Printer",
+    "label_w": 62.0,
+    "label_h": 29.0,
 }
 
 _state = {
@@ -136,6 +139,9 @@ class SettingsModel(BaseModel):
     t5_spindle: Optional[int] = None
     t5_feed: Optional[int] = None
     order_id: Optional[str] = None
+    label_format: Optional[str] = None
+    label_w: Optional[float] = None
+    label_h: Optional[float] = None
 
 
 class ProfileIn(BaseModel):
@@ -394,7 +400,7 @@ from fastapi.responses import Response
 
 @app.post("/labels/pdf")
 async def create_labels_pdf(req: LabelRequest):
-    pdf_buffer = generate_labels_pdf(req)
+    pdf_buffer = generate_labels_pdf(req, _state["settings"])
     return Response(
         content=pdf_buffer.getvalue(),
         media_type="application/pdf",
@@ -408,7 +414,7 @@ async def create_labels_pdf_get():
         order_id=order_id,
         doors=_state["doors"]
     )
-    pdf_buffer = generate_labels_pdf(req)
+    pdf_buffer = generate_labels_pdf(req, _state["settings"])
     return Response(
         content=pdf_buffer.getvalue(),
         media_type="application/pdf",
