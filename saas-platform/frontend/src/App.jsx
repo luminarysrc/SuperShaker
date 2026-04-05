@@ -3,13 +3,14 @@
  * Two-panel layout: SuperShakerPanel (left) + GcodeViewerPanel (right)
  */
 import React, { useState, useCallback, useEffect } from "react";
+import ThemeProvider from "./components/ThemeProvider.jsx";
 import LoginScreen from "./components/LoginScreen.jsx";
 import Sidebar from "./components/Sidebar.jsx";
 import SuperShakerPanel from "./components/SuperShakerPanel.jsx";
 import GcodeViewerPanel from "./components/GcodeViewerPanel.jsx";
 import { listProfiles, createProfile, renameProfile, deleteProfile, loadProfile, saveProfile } from "./services/EngineClient.js";
 
-export default function App() {
+function AppContent() {
   const [user, setUser] = useState(null);
 
   // G-code state — flows from SuperShaker → Viewer
@@ -23,8 +24,8 @@ export default function App() {
   // Machine profiles
   const [profiles, setProfiles] = useState([]);
   const [activeProfileId, setActiveProfileId] = useState(null);
-  const [settingsVersion, setSettingsVersion] = useState(0); // bump to tell SuperShakerPanel to re-fetch
-  const [doorsVersion, setDoorsVersion] = useState(0); // bump to tell SuperShakerPanel to re-fetch doors
+  const [settingsVersion, setSettingsVersion] = useState(0);
+  const [doorsVersion, setDoorsVersion] = useState(0);
 
   const handleLogin = useCallback((u) => setUser(u), []);
   const handleLogout = useCallback(() => {
@@ -45,7 +46,6 @@ export default function App() {
 
   const handleNestingDone = useCallback((result) => {
     setNestingResult(result);
-    // Clear previous G-code when nesting changes
     setGcodeData(null);
     setGcodeText(null);
     setAllSheets(null);
@@ -61,7 +61,6 @@ export default function App() {
     }).catch(console.error);
   }, [user]);
 
-  // Refresh the profile list helper
   const refreshProfiles = async () => {
     const data = await listProfiles();
     setProfiles(data.profiles || []);
@@ -111,7 +110,7 @@ export default function App() {
   if (!user) return <LoginScreen onLogin={handleLogin} />;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-cnc-bg">
+    <div className="flex h-screen overflow-hidden" style={{ backgroundColor: "var(--ss-bg)" }}>
       <Sidebar
         user={user}
         onLogout={handleLogout}
@@ -126,7 +125,8 @@ export default function App() {
       <div className="flex-1 flex min-w-0">
         {/* Left: SuperShaker Tool Panel */}
         <div className="w-[380px] min-w-[340px] max-w-[440px] flex-shrink-0
-                        border-r border-[rgba(255,255,255,0.08)] bg-[#0F0F11]">
+                        border-r"
+             style={{ borderColor: "var(--ss-border)", backgroundColor: "var(--ss-panel-bg)" }}>
           <SuperShakerPanel
             onGcodeGenerated={handleGcodeGenerated}
             onNestingDone={handleNestingDone}
@@ -147,5 +147,13 @@ export default function App() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 }

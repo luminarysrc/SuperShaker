@@ -3,41 +3,79 @@
 @tailwind utilities;
 
 /* ═══════════════════════════════════════════════════════════
-   SuperShaker SaaS — Design Tokens & Global Styles
+   SuperShaker SaaS — Design Tokens (Light/Dark)
    ═══════════════════════════════════════════════════════════ */
 
+/* ── Light Mode (default) ─────────────────────────────────── */
 :root {
-  --cnc-bg:          #080808;
-  --cnc-surface:     #0b1a13;
-  --cnc-card:        #10241b;
-  --cnc-border:      #1a3d2e;
-  --cnc-accent:      #C6F321;
-  --cnc-accent-2:    #00FFCC;
-  --cnc-text:        #e2e8f0;
-  --cnc-text-muted:  #64748b;
-  --cnc-danger:      #ef4444;
-  --cnc-success:     #22c55e;
-  --cnc-warn:        #f59e0b;
+  --ss-bg:          #f4f4f5;
+  --ss-surface:     #ffffff;
+  --ss-card:        #ffffff;
+  --ss-border:      rgba(0, 0, 0, 0.08);
+  --ss-border-strong: rgba(0, 0, 0, 0.14);
+  --ss-accent:      #84cc16;
+  --ss-accent-hover: #65a30d;
+  --ss-accent-soft: rgba(132, 204, 22, 0.12);
+  --ss-accent-2:    #0ea5e9;
+  --ss-text:        #18181b;
+  --ss-text-muted:  #71717a;
+  --ss-text-inverse: #fafafa;
+  --ss-danger:      #ef4444;
+  --ss-success:     #22c55e;
+  --ss-warn:        #f59e0b;
+  --ss-shadow-sm:   0 1px 2px rgba(0,0,0,0.05);
+  --ss-shadow-md:   0 4px 12px rgba(0,0,0,0.08);
+  --ss-shadow-lg:   0 8px 24px rgba(0,0,0,0.12);
+  --ss-input-bg:    #f4f4f5;
+  --ss-sidebar-bg:  #ffffff;
+  --ss-panel-bg:    #fafafa;
+  --ss-viewer-bg:   #e8e8ec;
+  --ss-toolbar-bg:  rgba(255, 255, 255, 0.85);
 }
 
-/* ── Tailwind theme colors ─────────────────────────────── */
+/* ── Dark Mode ────────────────────────────────────────────── */
+.dark {
+  --ss-bg:          #111116;
+  --ss-surface:     #1a1a20;
+  --ss-card:        #22222a;
+  --ss-border:      rgba(255, 255, 255, 0.07);
+  --ss-border-strong: rgba(255, 255, 255, 0.12);
+  --ss-accent:      #84cc16;
+  --ss-accent-hover: #a3e635;
+  --ss-accent-soft: rgba(132, 204, 22, 0.10);
+  --ss-accent-2:    #38bdf8;
+  --ss-text:        #e4e4e7;
+  --ss-text-muted:  #71717a;
+  --ss-text-inverse: #18181b;
+  --ss-danger:      #f87171;
+  --ss-success:     #4ade80;
+  --ss-warn:        #fbbf24;
+  --ss-shadow-sm:   0 1px 2px rgba(0,0,0,0.3);
+  --ss-shadow-md:   0 4px 12px rgba(0,0,0,0.4);
+  --ss-shadow-lg:   0 8px 24px rgba(0,0,0,0.5);
+  --ss-input-bg:    rgba(255, 255, 255, 0.04);
+  --ss-sidebar-bg:  #16161b;
+  --ss-panel-bg:    #16161b;
+  --ss-viewer-bg:   #0d0d12;
+  --ss-toolbar-bg:  rgba(26, 26, 32, 0.85);
+}
+
+/* ── Base styles ──────────────────────────────────────────── */
 @layer base {
   body {
-    @apply bg-cnc-bg text-cnc-text font-sans;
+    background-color: var(--ss-bg);
+    color: var(--ss-text);
     font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     margin: 0;
     padding: 0;
-    background-image: 
-      linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-    background-size: 32px 32px;
-    background-position: center top;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 
   * {
     scrollbar-width: thin;
-    scrollbar-color: var(--cnc-border) transparent;
+    scrollbar-color: var(--ss-border-strong) transparent;
   }
   *::-webkit-scrollbar {
     width: 5px;
@@ -47,90 +85,136 @@
     background: transparent;
   }
   *::-webkit-scrollbar-thumb {
-    background: var(--cnc-border);
+    background: var(--ss-border-strong);
     border-radius: 99px;
   }
   *::-webkit-scrollbar-thumb:hover {
-    background: var(--cnc-accent);
+    background: var(--ss-accent);
   }
 }
 
-/* ── Component classes ─────────────────────────────────── */
+/* ── Component classes ─────────────────────────────────────── */
 @layer components {
   /* Inputs */
-  .cnc-input {
-    @apply bg-white/[0.03] border border-transparent rounded-lg px-3 py-2
-           text-cnc-text text-sm font-mono
-           focus:outline-none focus:border-cnc-accent/50 focus:ring-1 focus:ring-cnc-accent/50
-           transition-all duration-200;
+  .ss-input {
+    background-color: var(--ss-input-bg);
+    border: 1px solid var(--ss-border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    color: var(--ss-text);
+    font-size: 13px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
   }
-  .cnc-input::-webkit-inner-spin-button,
-  .cnc-input::-webkit-outer-spin-button {
+  .ss-input:focus {
+    border-color: var(--ss-accent);
+    box-shadow: 0 0 0 2px var(--ss-accent-soft);
+  }
+  .ss-input::-webkit-inner-spin-button,
+  .ss-input::-webkit-outer-spin-button {
     opacity: 0.3;
   }
 
-  /* Buttons */
-  .cnc-btn-primary {
-    @apply bg-[#C6F321] text-black font-semibold rounded-[6px]
-           shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]
-           hover:shadow-[0_0_15px_rgba(198,243,33,0.3),inset_0_1px_0_rgba(255,255,255,0.2)] hover:bg-[#d4fa41]
-           active:scale-[0.98]
-           disabled:opacity-40 disabled:pointer-events-none
-           transition-all duration-200 border-none;
+  /* Primary button */
+  .ss-btn-primary {
+    background-color: var(--ss-accent);
+    color: var(--ss-text-inverse);
+    font-weight: 600;
+    border-radius: 8px;
+    border: none;
+    box-shadow: var(--ss-shadow-sm);
+    transition: all 0.2s ease;
+    cursor: pointer;
   }
-  .cnc-btn-ghost {
-    @apply bg-cnc-card border border-cnc-border rounded-lg
-           text-cnc-text font-medium
-           hover:border-cnc-accent/30 hover:bg-cnc-accent/5
-           active:scale-[0.98]
-           disabled:opacity-40 disabled:pointer-events-none
-           transition-all duration-200;
+  .ss-btn-primary:hover {
+    background-color: var(--ss-accent-hover);
+    box-shadow: var(--ss-shadow-md);
+  }
+  .ss-btn-primary:active {
+    transform: scale(0.98);
+  }
+  .ss-btn-primary:disabled {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
+  /* Ghost/outline button */
+  .ss-btn-ghost {
+    background-color: var(--ss-card);
+    border: 1px solid var(--ss-border);
+    border-radius: 8px;
+    color: var(--ss-text);
+    font-weight: 500;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  .ss-btn-ghost:hover {
+    border-color: var(--ss-accent);
+    background-color: var(--ss-accent-soft);
+  }
+  .ss-btn-ghost:active {
+    transform: scale(0.98);
+  }
+  .ss-btn-ghost:disabled {
+    opacity: 0.4;
+    pointer-events: none;
   }
 
   /* Cards */
-  .cnc-card-base {
-    @apply bg-cnc-card border border-cnc-border rounded-xl p-4;
+  .ss-card {
+    background-color: var(--ss-card);
+    border: 1px solid var(--ss-border);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: var(--ss-shadow-sm);
   }
 }
 
-/* ── Animations ────────────────────────────────────────── */
+/* ── Utility classes ───────────────────────────────────────── */
+.bg-ss-bg        { background-color: var(--ss-bg); }
+.bg-ss-surface   { background-color: var(--ss-surface); }
+.bg-ss-card      { background-color: var(--ss-card); }
+.bg-ss-sidebar   { background-color: var(--ss-sidebar-bg); }
+.bg-ss-panel     { background-color: var(--ss-panel-bg); }
+.bg-ss-toolbar   { background-color: var(--ss-toolbar-bg); }
+.bg-ss-input     { background-color: var(--ss-input-bg); }
+.border-ss       { border-color: var(--ss-border); }
+.border-ss-strong { border-color: var(--ss-border-strong); }
+.text-ss         { color: var(--ss-text); }
+.text-ss-muted   { color: var(--ss-text-muted); }
+.text-ss-accent  { color: var(--ss-accent); }
+.shadow-ss-sm    { box-shadow: var(--ss-shadow-sm); }
+.shadow-ss-md    { box-shadow: var(--ss-shadow-md); }
+.shadow-ss-lg    { box-shadow: var(--ss-shadow-lg); }
+
+/* ── Animations ────────────────────────────────────────────── */
 @keyframes fade-in {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 .animate-fade-in {
-  animation: fade-in 0.3s ease-out both;
+  animation: fade-in 0.25s ease-out both;
 }
 
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(198, 243, 33, 0.1); }
-  50% { box-shadow: 0 0 12px 2px rgba(198, 243, 33, 0.15); }
-}
-.animate-pulse-glow {
-  animation: pulse-glow 2.5s ease-in-out infinite;
-}
-
-/* ── Table styling ─────────────────────────────────────── */
+/* ── Table styling ─────────────────────────────────────────── */
 #parts-table th {
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 #parts-table td {
-  color: var(--cnc-text);
+  color: var(--ss-text);
 }
 
-/* ── Canvas nesting preview ────────────────────────────── */
+/* ── Canvas nesting preview ────────────────────────────────── */
 #nesting-canvas {
   display: block;
   width: 100%;
 }
 
-/* ── Backgrounds ───────────────────────────────────────── */
-.bg-cnc-bg      { background-color: var(--cnc-bg); }
-.bg-cnc-surface  { background-color: var(--cnc-surface); }
-.bg-cnc-card     { background-color: var(--cnc-card); }
-.border-cnc-border { border-color: var(--cnc-border); }
-.text-cnc-text   { color: var(--cnc-text); }
-.text-cnc-text-muted { color: var(--cnc-text-muted); }
-.text-cnc-accent { color: var(--cnc-accent); }
+/* ── Theme transition helpers ──────────────────────────────── */
+.theme-transition,
+.theme-transition *:not(canvas):not(video):not(iframe) {
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.2s ease, box-shadow 0.3s ease;
+}

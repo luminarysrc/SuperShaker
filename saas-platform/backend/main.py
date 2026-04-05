@@ -63,6 +63,8 @@ _DEFAULT_SETTINGS = {
     "label_w": 62.0,
     "label_h": 29.0,
     "sheet_grain": "None",
+    "sheet_cost": 65.0,
+    "shop_rate": 85.0,
 }
 
 _state = {
@@ -146,6 +148,8 @@ class SettingsModel(BaseModel):
     label_w: Optional[float] = None
     label_h: Optional[float] = None
     sheet_grain: Optional[str] = None
+    sheet_cost: Optional[float] = None
+    shop_rate: Optional[float] = None
 
 
 class ProfileIn(BaseModel):
@@ -408,6 +412,42 @@ async def nest():
         nesting_iterations=s.get("nesting_iterations", 100),
         sheet_grain=s.get("sheet_grain", "None"),
     )
+    
+    # Costing Estimation
+    total_length_mm = 0
+    frame_w = s.get("frame_w", 50.0)
+    stepover = s.get("t6_dia", 12.7) * s.get("spiral_overlap", 0.5)
+    
+    for sht in result.get("sheets", []):
+        for plc in sht:
+            w, h = plc["w"], plc["h"]
+            total_length_mm += 2 * (w + h)
+            if plc.get("type", "Slab") in ["Shaker", "Shaker Step"]:
+                inner_w, inner_h = max(0, w - 2 * frame_w), max(0, h - 2 * frame_w)
+                total_length_mm += 2 * (inner_w + inner_h)
+                if s.get("do_pocket", True) and stepover > 0:
+                    area = inner_w * inner_h
+                    total_length_mm += area / stepover
+
+    feed_xy = s.get("feed_xy", 3000)
+    time_minutes = (total_length_mm / feed_xy) * 1.1 if feed_xy > 0 else 0
+    time_hours = time_minutes / 60.0
+    
+    sheet_count = len(result.get("sheets", []))
+    sheet_cost = s.get("sheet_cost", 65.0)
+    shop_rate = s.get("shop_rate", 85.0)
+    
+    total_material = sheet_count * sheet_cost
+    total_labor = time_hours * shop_rate
+    
+    result["costing"] = {
+        "sheet_count": sheet_count,
+        "material_cost": round(total_material, 2),
+        "machine_time_hours": round(time_hours, 3),
+        "labor_cost": round(total_labor, 2),
+        "total_estimate": round(total_material + total_labor, 2)
+    }
+
     _state["nesting_result"] = result
     return result
 

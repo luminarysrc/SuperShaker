@@ -3,6 +3,7 @@
  * Order input, parts table, material/tool config, nesting, G-code generation.
  */
 import React, { useState, useCallback, useEffect, useRef } from "react";
+import { useTheme } from "./ThemeProvider.jsx";
 import {
   listDoors, addDoor, deleteDoor, clearDoors, updateDoor,
   getSettings, updateSettings, runNesting, generateFullGcode,
@@ -10,6 +11,9 @@ import {
 } from "../services/EngineClient.js";
 
 export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, settingsVersion, doorsVersion }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   // ── State ─────────────────────────────────────────────
   const [doors, setDoors] = useState([]);
   const [settings, setSettings] = useState(null);
@@ -21,10 +25,9 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
 
   // Add door form state
   const [newDoor, setNewDoor] = useState({ w: 400, h: 600, qty: 4, type: "Shaker", grain: "None" });
-  // Inline editing: { id, field }
+  const [showCostSettings, setShowCostSettings] = useState(false);
   const [editingCell, setEditingCell] = useState(null);
   const [editingValue, setEditingValue] = useState("");
-  // Unit system: false = mm, true = inch
   const [useInch, setUseInch] = useState(false);
   const MM_PER_INCH = 25.4;
   const toDisplay = (mm) => useInch ? +(mm / MM_PER_INCH).toFixed(3) : mm;
@@ -46,7 +49,6 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
     })();
   }, []);
 
-  // ── Reload settings when profile changes ──────────────
   useEffect(() => {
     if (settingsVersion === 0 || settingsVersion === undefined) return;
     (async () => {
@@ -59,7 +61,6 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
     })();
   }, [settingsVersion]);
 
-  // ── Reload doors when doorsVersion changes ────────────
   useEffect(() => {
     if (doorsVersion === 0 || doorsVersion === undefined) return;
     (async () => {
@@ -73,7 +74,6 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
     })();
   }, [doorsVersion]);
 
-  // ── Settings update helper ────────────────────────────
   const handleSettingsChange = useCallback(async (key, value) => {
     const updated = { [key]: value };
     try {
@@ -84,7 +84,6 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
     }
   }, []);
 
-  // ── Add door ──────────────────────────────────────────
   const handleAddDoor = useCallback(async () => {
     try {
       const d = await addDoor(newDoor);
@@ -95,7 +94,6 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
     }
   }, [newDoor]);
 
-  // ── Delete door ───────────────────────────────────────
   const handleDeleteDoor = useCallback(async (id) => {
     try {
       await deleteDoor(id);
@@ -106,9 +104,6 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
     }
   }, []);
 
-
-
-  // ── Clear all ─────────────────────────────────────────
   const handleClear = useCallback(async () => {
     try {
       await clearDoors();
@@ -119,7 +114,6 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
     }
   }, []);
 
-  // ── Inline edit cell ──────────────────────────────────
   const startEdit = (id, field, currentValue) => {
     setEditingCell({ id, field });
     setEditingValue(String(currentValue));
@@ -146,7 +140,6 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
     }
   }, [doors, useInch]);
 
-  // ── Run Nesting ───────────────────────────────────────
   const handleNesting = useCallback(async () => {
     setIsLoading("nesting");
     setError(null);
@@ -161,7 +154,6 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
     }
   }, [onNestingDone]);
 
-  // ── Generate Labels PDF ───────────────────────────────
   const handleGenerateLabels = useCallback(async () => {
     setIsLoading("labels");
     setError(null);
@@ -174,7 +166,6 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
     }
   }, []);
 
-  // ── Download Cutting Map PDF ──────────────────────────
   const handleCuttingMap = useCallback(async () => {
     setIsLoading("cuttingmap");
     setError(null);
@@ -187,12 +178,11 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
     }
   }, []);
 
-  // ── Generate G-code ───────────────────────────────────
   const handleGenerate = useCallback(async () => {
     setIsLoading("generating");
     setError(null);
     try {
-      const result = await generateFullGcode(-1); // all sheets
+      const result = await generateFullGcode(-1);
       if (result.sheets && result.sheets.length > 0) {
         const firstSheet = result.sheets[0];
         const parsed = parseGcode(firstSheet.gcode);
@@ -234,25 +224,27 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, cw, totalH);
 
+    const labelColor = isDark ? "#a1a1aa" : "#52525b";
+    const sheetBg = isDark ? "#1e293b" : "#e2e8f0";
+    const sheetStroke = isDark ? "#334155" : "#94a3b8";
+    const partLabelColor = isDark ? "#e2e8f0" : "#1e293b";
+
     sheets.forEach((sheet, si) => {
       const xo = (cw - thumbW) / 2;
       const yo = si * (thumbH + 40) + 28;
       const scale = thumbW / sw;
 
-      // Sheet label
-      ctx.font = "bold 11px Inter, system-ui";
-      ctx.fillStyle = "#94a3b8";
+      ctx.font = "600 11px Inter, system-ui";
+      ctx.fillStyle = labelColor;
       ctx.textAlign = "center";
       ctx.fillText(`Sheet ${si + 1}`, xo + thumbW / 2, yo - 8);
 
-      // Sheet background
-      ctx.fillStyle = "#1e293b";
-      ctx.strokeStyle = "#334155";
+      ctx.fillStyle = sheetBg;
+      ctx.strokeStyle = sheetStroke;
       ctx.lineWidth = 1.5;
       ctx.fillRect(xo, yo, thumbW, thumbH);
       ctx.strokeRect(xo, yo, thumbW, thumbH);
 
-      // Margin
       const ms = settings.margin * scale;
       ctx.strokeStyle = "#ef4444";
       ctx.lineWidth = 0.5;
@@ -260,7 +252,6 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
       ctx.strokeRect(xo + ms, yo + ms, thumbW - 2 * ms, thumbH - 2 * ms);
       ctx.setLineDash([]);
 
-      // Parts
       const colors = {
         "Shaker": "#3b82f6",
         "Shaker Step": "#22c55e",
@@ -268,60 +259,65 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
       };
       sheet.forEach(d => {
         const x1 = xo + d.x * scale;
-        // FIX: Y-axis aligns with G-code (Y=0 at the bottom)
         const y1 = yo + thumbH - (d.y + d.h) * scale;
         const w = d.w * scale;
         const h = d.h * scale;
         const c = colors[d.type] || "#6366f1";
-        ctx.fillStyle = c + "30";
+        ctx.fillStyle = c + "25";
         ctx.strokeStyle = c;
         ctx.lineWidth = 1;
         ctx.fillRect(x1, y1, w, h);
         ctx.strokeRect(x1, y1, w, h);
 
-        // ID label
         if (w > 18 && h > 12) {
           ctx.font = "bold 8px JetBrains Mono, monospace";
-          ctx.fillStyle = "#e2e8f0";
+          ctx.fillStyle = partLabelColor;
           ctx.textAlign = "center";
           ctx.fillText(`${d.id}`, x1 + w / 2, y1 + h / 2 + 3);
         }
       });
     });
-  }, [nestingResult, settings]);
+  }, [nestingResult, settings, isDark]);
 
   if (!settings) {
     return (
-      <div className="flex items-center justify-center h-full text-cnc-text-muted">
-        <p>Connecting to backend...</p>
+      <div className="flex items-center justify-center h-full" style={{ color: "var(--ss-text-muted)" }}>
+        <p>Connecting to backend…</p>
       </div>
     );
   }
 
+  const typeColors = {
+    "Shaker": { text: "#3b82f6", border: "rgba(59,130,246,0.25)", bg: "rgba(59,130,246,0.08)" },
+    "Shaker Step": { text: "#22c55e", border: "rgba(34,197,94,0.25)", bg: "rgba(34,197,94,0.08)" },
+    "Slab": { text: "#f59e0b", border: "rgba(245,158,11,0.25)", bg: "rgba(245,158,11,0.08)" },
+  };
+
   // ═══════════════════════════════════════════════════════
   return (
-    <div className="h-full overflow-y-auto bg-transparent" id="supershaker-panel">
+    <div className="h-full overflow-y-auto" id="supershaker-panel" style={{ backgroundColor: "transparent" }}>
       <div className="p-4 space-y-4">
 
         {/* ── KPI Bar ───────────────────────────────────── */}
         {nestingResult && (
           <div className="grid grid-cols-4 gap-2 animate-fade-in" id="kpi-bar">
             {[
-              { label: "SHEETS", value: nestingResult.total_sheets, color: "text-sky-400" },
-              { label: "PARTS", value: nestingResult.total_parts, color: "text-green-400" },
-              { label: "YIELD", value: `${nestingResult.yield_percentage}%`, color: "text-cnc-accent [text-shadow:0_0_10px_rgba(198,243,33,0.3)]" },
-              { label: "AREA", value: `${nestingResult.total_area_m2}m²`, color: "text-purple-400" },
+              { label: "Sheets", value: nestingResult.total_sheets, color: "#0ea5e9" },
+              { label: "Parts", value: nestingResult.total_parts, color: "#22c55e" },
+              { label: "Yield", value: `${nestingResult.yield_percentage}%`, color: "var(--ss-accent)" },
+              { label: "Area", value: `${nestingResult.total_area_m2}m²`, color: "#a855f7" },
             ].map(k => (
-              <div key={k.label} className="bg-cnc-card rounded-lg p-2 text-center border border-cnc-border">
-                <p className="text-[9px] text-cnc-text-muted font-semibold tracking-widest">{k.label}</p>
-                <p className={`text-sm font-bold font-mono ${k.color}`}>{k.value}</p>
+              <div key={k.label} className="rounded-lg p-2 text-center"
+                   style={{ backgroundColor: "var(--ss-card)", border: "1px solid var(--ss-border)" }}>
+                <p className="text-[9px] font-semibold tracking-widest uppercase" style={{ color: "var(--ss-text-muted)" }}>{k.label}</p>
+                <p className="text-sm font-bold font-mono" style={{ color: k.color }}>{k.value}</p>
               </div>
             ))}
           </div>
         )}
 
         {/* ── Section Tabs ──────────────────────────────── */}
-        <div className="flex gap-1 bg-cnc-card rounded-lg p-1 border border-cnc-border">
+        <div className="flex gap-1 rounded-lg p-1" style={{ backgroundColor: "var(--ss-card)", border: "1px solid var(--ss-border)" }}>
           {[
             { key: "workflow", label: "Workflow" },
             { key: "params", label: "Parameters" },
@@ -330,10 +326,11 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
             <button
               key={tab.key}
               onClick={() => setActiveSection(tab.key)}
-              className={`flex-1 px-2 py-1.5 rounded-md text-xs font-medium transition-all
-                ${activeSection === tab.key
-                  ? "bg-cnc-accent/15 text-cnc-accent"
-                  : "text-cnc-text-muted hover:text-cnc-text"}`}
+              className="flex-1 px-2 py-1.5 rounded-md text-xs font-medium transition-all"
+              style={{
+                backgroundColor: activeSection === tab.key ? "var(--ss-accent-soft)" : "transparent",
+                color: activeSection === tab.key ? "var(--ss-accent)" : "var(--ss-text-muted)",
+              }}
             >
               {tab.label}
             </button>
@@ -346,18 +343,27 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
 
             {/* Unit toggle */}
             <div className="flex items-center gap-3">
-              <span className="text-[10px] font-mono text-cnc-text-muted uppercase tracking-widest">Units</span>
-              <div className="relative flex items-center bg-[#0a0a0a] rounded-lg p-1 border border-white/10 w-[120px] cursor-pointer shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]">
+              <span className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "var(--ss-text-muted)" }}>Units</span>
+              <div
+                className="relative flex items-center rounded-lg p-1 w-[120px] cursor-pointer"
+                style={{ backgroundColor: "var(--ss-card)", border: "1px solid var(--ss-border)" }}
+              >
                 <div 
-                  className="absolute top-1 bottom-1 w-[54px] rounded-md bg-[#1a1a1a] border border-white/5 shadow-[0_2px_6px_rgba(0,0,0,0.6)] transition-transform duration-300 ease-out"
-                  style={{ transform: useInch ? "translateX(56px)" : "translateX(0px)" }}
+                  className="absolute top-1 bottom-1 w-[54px] rounded-md transition-transform duration-300 ease-out"
+                  style={{
+                    backgroundColor: "var(--ss-accent-soft)",
+                    border: "1px solid rgba(132,204,22,0.2)",
+                    transform: useInch ? "translateX(56px)" : "translateX(0px)",
+                  }}
                 />
                 <button onClick={() => setUseInch(false)}
-                  className={`relative z-10 flex-1 text-center text-[10px] font-mono font-bold py-1 transition-all select-none ${!useInch ? 'text-[#C6F321] drop-shadow-[0_0_6px_rgba(198,243,33,0.5)]' : 'text-gray-600 hover:text-gray-400'}`}>
+                  className="relative z-10 flex-1 text-center text-[10px] font-mono font-bold py-1 transition-all select-none"
+                  style={{ color: !useInch ? "var(--ss-accent)" : "var(--ss-text-muted)" }}>
                   MM
                 </button>
                 <button onClick={() => setUseInch(true)}
-                  className={`relative z-10 flex-1 text-center text-[10px] font-mono font-bold py-1 transition-all select-none ${useInch ? 'text-[#00FFFF] drop-shadow-[0_0_6px_rgba(0,255,255,0.5)]' : 'text-gray-600 hover:text-gray-400'}`}>
+                  className="relative z-10 flex-1 text-center text-[10px] font-mono font-bold py-1 transition-all select-none"
+                  style={{ color: useInch ? "var(--ss-accent)" : "var(--ss-text-muted)" }}>
                   INCH
                 </button>
               </div>
@@ -365,92 +371,115 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
 
             {/* Order # */}
             <div className="flex items-center gap-2">
-              <label className="text-xs text-cnc-text-muted whitespace-nowrap w-16">Order #</label>
+              <label className="text-xs whitespace-nowrap w-16" style={{ color: "var(--ss-text-muted)" }}>Order #</label>
               <input
                 type="text"
                 value={settings.order_id}
                 onChange={e => handleSettingsChange("order_id", e.target.value)}
-                className="cnc-input flex-1 text-xs"
+                className="ss-input flex-1 text-xs"
                 placeholder="e.g. ORD-2026-001"
               />
+            </div>
+            
+            {/* Cost Settings */}
+            <div className="flex flex-col gap-2 p-2 rounded-lg" style={{ backgroundColor: "var(--ss-card)", border: "1px solid var(--ss-border)" }}>
+              <button 
+                onClick={() => setShowCostSettings(!showCostSettings)}
+                className="flex items-center justify-between text-xs cursor-pointer w-full text-left transition-colors"
+                style={{ color: "var(--ss-text-muted)" }}>
+                <span className="font-medium tracking-wider text-[10px] uppercase">Job Costing Setup</span>
+                <span>{showCostSettings ? '▼' : '▶'}</span>
+              </button>
+              
+              {showCostSettings && (
+                <div className="grid grid-cols-2 gap-2 pt-2 animate-fade-in" style={{ borderTop: "1px solid var(--ss-border)" }}>
+                  <div>
+                    <label className="text-[10px] block mb-0.5" style={{ color: "var(--ss-text-muted)" }}>Sheet Cost ($)</label>
+                    <input type="number" 
+                      value={settings.sheet_cost ?? 65.0}
+                      onChange={e => handleSettingsChange("sheet_cost", parseFloat(e.target.value) || 0)}
+                      className="ss-input w-full text-xs py-1.5" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] block mb-0.5" style={{ color: "var(--ss-text-muted)" }}>Shop Rate ($/hr)</label>
+                    <input type="number" 
+                      value={settings.shop_rate ?? 85.0}
+                      onChange={e => handleSettingsChange("shop_rate", parseFloat(e.target.value) || 0)}
+                      className="ss-input w-full text-xs py-1.5" />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Add door */}
             <section className="space-y-4">
               <div className="flex items-center gap-3">
-                <h3 className="text-[10px] font-mono font-semibold text-cnc-text-muted uppercase tracking-widest whitespace-nowrap">
+                <h3 className="text-[10px] font-semibold uppercase tracking-widest whitespace-nowrap"
+                    style={{ color: "var(--ss-text-muted)" }}>
                   Add Part
                 </h3>
-                <hr className="flex-1 border-white/5" />
+                <hr className="flex-1" style={{ borderColor: "var(--ss-border)" }} />
               </div>
               <div className="grid grid-cols-[1fr_1fr_1fr_1.8fr] gap-2">
                 <div>
-                  <label className="text-[10px] text-cnc-text-muted block mb-0.5">W {unitLabel}</label>
+                  <label className="text-[10px] block mb-0.5" style={{ color: "var(--ss-text-muted)" }}>W {unitLabel}</label>
                   <input type="number" value={toDisplay(newDoor.w)}
                     onChange={e => setNewDoor(p => ({...p, w: fromDisplay(parseFloat(e.target.value) || 0)}))}
-                    className="cnc-input w-full text-xs" />
+                    className="ss-input w-full text-xs" />
                 </div>
                 <div>
-                  <label className="text-[10px] text-cnc-text-muted block mb-0.5">H {unitLabel}</label>
+                  <label className="text-[10px] block mb-0.5" style={{ color: "var(--ss-text-muted)" }}>H {unitLabel}</label>
                   <input type="number" value={toDisplay(newDoor.h)}
                     onChange={e => setNewDoor(p => ({...p, h: fromDisplay(parseFloat(e.target.value) || 0)}))}
-                    className="cnc-input w-full text-xs" />
+                    className="ss-input w-full text-xs" />
                 </div>
                 <div>
-                  <label className="text-[10px] text-cnc-text-muted block mb-0.5">Qty</label>
+                  <label className="text-[10px] block mb-0.5" style={{ color: "var(--ss-text-muted)" }}>Qty</label>
                   <input type="number" value={newDoor.qty}
                     onChange={e => setNewDoor(p => ({...p, qty: parseInt(e.target.value) || 1}))}
-                    className="cnc-input w-full text-xs" />
+                    className="ss-input w-full text-xs" />
                 </div>
                 <div>
-                  <label className="text-[10px] text-cnc-text-muted block mb-0.5">Type</label>
+                  <label className="text-[10px] block mb-0.5" style={{ color: "var(--ss-text-muted)" }}>Type</label>
                   <select value={newDoor.type}
                     onChange={e => setNewDoor(p => ({...p, type: e.target.value}))}
-                    className="cnc-input w-full text-xs py-[7px]">
-                    <option className="bg-[#1A1A1A] text-white">Shaker</option>
-                    <option className="bg-[#1A1A1A] text-white">Shaker Step</option>
-                    <option className="bg-[#1A1A1A] text-white">Slab</option>
+                    className="ss-input w-full text-xs py-[7px]">
+                    <option value="Shaker">Shaker</option>
+                    <option value="Shaker Step">Shaker Step</option>
+                    <option value="Slab">Slab</option>
                   </select>
                 </div>
               </div>
 
-              {/* Facade Type Preview Card */}
-              <div className="bg-[#111113] border border-white/5 rounded-lg p-3 flex gap-3 items-start animate-fade-in" key={newDoor.type}>
-                {/* SVG Diagram */}
-                <div className="w-24 h-20 flex-shrink-0 bg-[#0a0a0a] rounded border border-white/5 flex items-center justify-center">
+              {/* Facade Preview */}
+              <div className="rounded-lg p-3 flex gap-3 items-start animate-fade-in" key={newDoor.type}
+                   style={{ backgroundColor: "var(--ss-card)", border: "1px solid var(--ss-border)" }}>
+                <div className="w-24 h-20 flex-shrink-0 rounded flex items-center justify-center"
+                     style={{ backgroundColor: "var(--ss-input-bg)", border: "1px solid var(--ss-border)" }}>
                   {newDoor.type === "Shaker" && (
-                    <svg width="80" height="56" viewBox="0 0 80 56" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      {/* Outer frame */}
-                      <rect x="4" y="4" width="72" height="48" rx="2" stroke="#38bdf8" strokeWidth="1.5" strokeOpacity="0.6"/>
-                      {/* Inner panel (raised) */}
-                      <rect x="14" y="12" width="52" height="32" rx="1" stroke="#38bdf8" strokeWidth="1" fill="#38bdf8" fillOpacity="0.05"/>
-                      {/* Frame grooves */}
-                      <line x1="14" y1="12" x2="4" y2="4" stroke="#38bdf8" strokeWidth="0.5" strokeOpacity="0.3"/>
-                      <line x1="66" y1="12" x2="76" y2="4" stroke="#38bdf8" strokeWidth="0.5" strokeOpacity="0.3"/>
-                      <line x1="14" y1="44" x2="4" y2="52" stroke="#38bdf8" strokeWidth="0.5" strokeOpacity="0.3"/>
-                      <line x1="66" y1="44" x2="76" y2="52" stroke="#38bdf8" strokeWidth="0.5" strokeOpacity="0.3"/>
+                    <svg width="80" height="56" viewBox="0 0 80 56" fill="none">
+                      <rect x="4" y="4" width="72" height="48" rx="2" stroke="#3b82f6" strokeWidth="1.5" strokeOpacity="0.6"/>
+                      <rect x="14" y="12" width="52" height="32" rx="1" stroke="#3b82f6" strokeWidth="1" fill="#3b82f6" fillOpacity="0.05"/>
+                      <line x1="14" y1="12" x2="4" y2="4" stroke="#3b82f6" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="66" y1="12" x2="76" y2="4" stroke="#3b82f6" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="14" y1="44" x2="4" y2="52" stroke="#3b82f6" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="66" y1="44" x2="76" y2="52" stroke="#3b82f6" strokeWidth="0.5" strokeOpacity="0.3"/>
                     </svg>
                   )}
                   {newDoor.type === "Shaker Step" && (
-                    <svg width="80" height="56" viewBox="0 0 80 56" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      {/* Outer frame */}
-                      <rect x="4" y="4" width="72" height="48" rx="2" stroke="#4ade80" strokeWidth="1.5" strokeOpacity="0.6"/>
-                      {/* Inner panel */}
-                      <rect x="14" y="12" width="52" height="32" rx="1" stroke="#4ade80" strokeWidth="1" fill="#4ade80" fillOpacity="0.05"/>
-                      {/* Step groove (second inner rect) */}
-                      <rect x="20" y="17" width="40" height="22" rx="1" stroke="#4ade80" strokeWidth="0.8" strokeDasharray="2 1" strokeOpacity="0.4"/>
-                      {/* Corner lines */}
-                      <line x1="14" y1="12" x2="4" y2="4" stroke="#4ade80" strokeWidth="0.5" strokeOpacity="0.3"/>
-                      <line x1="66" y1="12" x2="76" y2="4" stroke="#4ade80" strokeWidth="0.5" strokeOpacity="0.3"/>
-                      <line x1="14" y1="44" x2="4" y2="52" stroke="#4ade80" strokeWidth="0.5" strokeOpacity="0.3"/>
-                      <line x1="66" y1="44" x2="76" y2="52" stroke="#4ade80" strokeWidth="0.5" strokeOpacity="0.3"/>
+                    <svg width="80" height="56" viewBox="0 0 80 56" fill="none">
+                      <rect x="4" y="4" width="72" height="48" rx="2" stroke="#22c55e" strokeWidth="1.5" strokeOpacity="0.6"/>
+                      <rect x="14" y="12" width="52" height="32" rx="1" stroke="#22c55e" strokeWidth="1" fill="#22c55e" fillOpacity="0.05"/>
+                      <rect x="20" y="17" width="40" height="22" rx="1" stroke="#22c55e" strokeWidth="0.8" strokeDasharray="2 1" strokeOpacity="0.4"/>
+                      <line x1="14" y1="12" x2="4" y2="4" stroke="#22c55e" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="66" y1="12" x2="76" y2="4" stroke="#22c55e" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="14" y1="44" x2="4" y2="52" stroke="#22c55e" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="66" y1="44" x2="76" y2="52" stroke="#22c55e" strokeWidth="0.5" strokeOpacity="0.3"/>
                     </svg>
                   )}
                   {newDoor.type === "Slab" && (
-                    <svg width="80" height="56" viewBox="0 0 80 56" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      {/* Flat slab — just a simple rectangle with subtle edge bevel */}
+                    <svg width="80" height="56" viewBox="0 0 80 56" fill="none">
                       <rect x="4" y="4" width="72" height="48" rx="1" stroke="#f59e0b" strokeWidth="1.5" strokeOpacity="0.6" fill="#f59e0b" fillOpacity="0.03"/>
-                      {/* Edge chamfer lines */}
                       <line x1="4" y1="4" x2="8" y2="8" stroke="#f59e0b" strokeWidth="0.5" strokeOpacity="0.25"/>
                       <line x1="76" y1="4" x2="72" y2="8" stroke="#f59e0b" strokeWidth="0.5" strokeOpacity="0.25"/>
                       <line x1="4" y1="52" x2="8" y2="48" stroke="#f59e0b" strokeWidth="0.5" strokeOpacity="0.25"/>
@@ -460,11 +489,8 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className={`text-xs font-mono font-bold mb-1 ${
-                    newDoor.type === "Shaker" ? "text-sky-400" :
-                    newDoor.type === "Shaker Step" ? "text-green-400" : "text-amber-400"
-                  }`}>{newDoor.type.toUpperCase()}</p>
-                  <p className="text-[10px] text-gray-500 leading-relaxed">
+                  <p className="text-xs font-semibold mb-1" style={{ color: typeColors[newDoor.type]?.text }}>{newDoor.type.toUpperCase()}</p>
+                  <p className="text-[10px] leading-relaxed" style={{ color: "var(--ss-text-muted)" }}>
                     {newDoor.type === "Shaker" && "Classic frame-and-panel facade. A pocket is milled around the inner panel perimeter, creating a clean raised step."}
                     {newDoor.type === "Shaker Step" && "Two-step facade. An additional inner contour adds depth, requiring two milling passes for a layered profile."}
                     {newDoor.type === "Slab" && "Flat facade with no frame or panel. Contour cut only, no pocket milling. Minimal machining time."}
@@ -473,7 +499,7 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
               </div>
 
               <button onClick={handleAddDoor}
-                className="cnc-btn-ghost w-full text-xs py-1.5">
+                className="ss-btn-ghost w-full text-xs py-1.5">
                 + Add Part
               </button>
             </section>
@@ -482,19 +508,21 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
             {doors.length > 0 && (
               <section className="space-y-3">
                 <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-[10px] font-mono font-semibold text-cnc-text-muted uppercase tracking-widest whitespace-nowrap">
+                  <h3 className="text-[10px] font-semibold uppercase tracking-widest whitespace-nowrap"
+                      style={{ color: "var(--ss-text-muted)" }}>
                     Parts ({doors.length})
                   </h3>
-                  <hr className="flex-1 border-white/5" />
+                  <hr className="flex-1" style={{ borderColor: "var(--ss-border)" }} />
                   <button onClick={handleClear}
-                    className="text-[10px] text-cnc-text-muted hover:text-red-400 transition-colors">
+                    className="text-[10px] transition-colors hover:text-red-500"
+                    style={{ color: "var(--ss-text-muted)" }}>
                     Clear All
                   </button>
                 </div>
-                <div className="overflow-x-auto max-h-40 overflow-y-auto rounded-lg border border-cnc-border">
+                <div className="overflow-x-auto max-h-40 overflow-y-auto rounded-lg" style={{ border: "1px solid var(--ss-border)" }}>
                   <table className="w-full text-xs" id="parts-table">
-                    <thead className="bg-cnc-card sticky top-0">
-                      <tr className="text-cnc-text-muted">
+                    <thead style={{ backgroundColor: "var(--ss-card)" }} className="sticky top-0">
+                      <tr style={{ color: "var(--ss-text-muted)" }}>
                         <th className="py-1.5 px-2 text-left font-medium">ID</th>
                         <th className="py-1.5 px-2 text-center font-medium">W</th>
                         <th className="py-1.5 px-2 text-center font-medium">H</th>
@@ -503,10 +531,9 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
                         <th className="py-1.5 px-1 w-6"></th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-cnc-border/30">
+                    <tbody>
                       {doors.map(d => {
                         const isEditing = (field) => editingCell?.id === d.id && editingCell?.field === field;
-                        const cellCls = "py-0 px-0";
                         const numCell = (field) => isEditing(field) ? (
                           <input
                             autoFocus
@@ -515,21 +542,27 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
                             onChange={e => setEditingValue(e.target.value)}
                             onBlur={() => commitEdit(d.id, field, editingValue)}
                             onKeyDown={e => { if (e.key === "Enter" || e.key === "Tab") commitEdit(d.id, field, editingValue); }}
-                            className="w-full h-8 text-center font-mono text-xs bg-[#1a1a1a] text-[#C6F321] outline-none border-b border-[#C6F321]/60 px-1"
+                            className="w-full h-8 text-center font-mono text-xs outline-none px-1"
+                            style={{
+                              backgroundColor: "var(--ss-input-bg)",
+                              color: "var(--ss-accent)",
+                              borderBottom: "2px solid var(--ss-accent)",
+                            }}
                           />
                         ) : (
                           <span
                             onClick={() => startEdit(d.id, field, (field === "w" || field === "h") ? toDisplay(d[field]) : d[field])}
-                            className="block w-full h-8 leading-8 text-center font-mono cursor-text hover:bg-white/5 hover:text-[#C6F321] transition-colors px-2"
+                            className="block w-full h-8 leading-8 text-center font-mono cursor-text transition-colors px-2"
+                            style={{ color: "var(--ss-text)" }}
                           >{(field === "w" || field === "h") ? toDisplay(d[field]) : d[field]}</span>
                         );
 
                         return (
-                        <tr key={d.id} className="hover:bg-cnc-card/50 transition-colors">
-                          <td className="py-1.5 px-2 font-mono text-cnc-accent">{d.id}</td>
-                          <td className={cellCls}>{numCell("w")}</td>
-                          <td className={cellCls}>{numCell("h")}</td>
-                          <td className={cellCls}>{numCell("qty")}</td>
+                        <tr key={d.id} className="transition-colors" style={{ borderBottom: "1px solid var(--ss-border)" }}>
+                          <td className="py-1.5 px-2 font-mono" style={{ color: "var(--ss-accent)" }}>{d.id}</td>
+                          <td className="py-0 px-0">{numCell("w")}</td>
+                          <td className="py-0 px-0">{numCell("h")}</td>
+                          <td className="py-0 px-0">{numCell("qty")}</td>
                           <td className="py-0 px-0 text-center">
                             {isEditing("type") ? (
                               <select
@@ -538,28 +571,34 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
                                 onChange={e => setEditingValue(e.target.value)}
                                 onBlur={() => commitEdit(d.id, "type", editingValue)}
                                 onKeyDown={e => { if (e.key === "Enter") commitEdit(d.id, "type", editingValue); }}
-                                className="w-full h-8 text-center font-mono text-xs bg-[#1a1a1a] text-[#C6F321] outline-none border-b border-[#C6F321]/60 px-1"
+                                className="w-full h-8 text-center font-mono text-xs outline-none px-1"
+                                style={{
+                                  backgroundColor: "var(--ss-input-bg)",
+                                  color: "var(--ss-accent)",
+                                  borderBottom: "2px solid var(--ss-accent)",
+                                }}
                               >
-                                <option className="bg-[#1A1A1A] text-white">Shaker</option>
-                                <option className="bg-[#1A1A1A] text-white">Shaker Step</option>
-                                <option className="bg-[#1A1A1A] text-white">Slab</option>
+                                <option value="Shaker">Shaker</option>
+                                <option value="Shaker Step">Shaker Step</option>
+                                <option value="Slab">Slab</option>
                               </select>
                             ) : (
                               <span
                                 onClick={() => startEdit(d.id, "type", d.type)}
-                                className={`inline-block cursor-pointer text-[10px] px-1.5 py-0.5 rounded-full border m-1
-                                  hover:ring-1 hover:ring-white/30 transition-all
-                                  ${d.type === "Shaker" ? "text-sky-400 border-sky-500/30 bg-sky-500/10" :
-                                    d.type === "Shaker Step" ? "text-green-400 border-green-500/30 bg-green-500/10" :
-                                    "text-amber-400 border-amber-500/30 bg-amber-500/10"}`}>
+                                className="inline-block cursor-pointer text-[10px] px-1.5 py-0.5 rounded-full m-1 transition-all"
+                                style={{
+                                  color: typeColors[d.type]?.text,
+                                  border: `1px solid ${typeColors[d.type]?.border}`,
+                                  backgroundColor: typeColors[d.type]?.bg,
+                                }}>
                                 {d.type}
                               </span>
                             )}
                           </td>
-
                           <td className="py-1.5 px-1">
                             <button onClick={() => handleDeleteDoor(d.id)}
-                              className="text-cnc-text-muted hover:text-red-400 text-xs transition-colors">
+                              className="text-xs transition-colors hover:text-red-500"
+                              style={{ color: "var(--ss-text-muted)" }}>
                               ✕
                             </button>
                           </td>
@@ -576,66 +615,95 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
             <div className="space-y-2">
               <button onClick={handleNesting}
                 disabled={!!isLoading || doors.length === 0}
-                className="cnc-btn-ghost w-full text-sm py-2.5 flex items-center justify-center gap-2">
+                className="ss-btn-ghost w-full text-sm py-2.5 flex items-center justify-center gap-2">
                 {isLoading === "nesting" ? (
-                  <><Spinner /> Running Nesting...</>
+                  <><Spinner /> Running Nesting…</>
                 ) : (
-                  <>
-                    Run Nesting
-                  </>
+                  "Run Nesting"
                 )}
               </button>
 
               <button onClick={handleGenerateLabels}
                 disabled={!!isLoading || doors.length === 0}
-                className="cnc-btn-ghost w-full text-sm py-2.5 flex items-center justify-center gap-2 mt-2 text-cyan-400 border-cyan-400/30 hover:bg-cyan-400/10">
+                className="ss-btn-ghost w-full text-sm py-2.5 flex items-center justify-center gap-2"
+                style={{ color: "#0ea5e9" }}>
                 {isLoading === "labels" ? (
-                  <><Spinner /> Generating PDF...</>
+                  <><Spinner /> Generating PDF…</>
                 ) : (
-                  <>Export PDF Labels</>
+                  "Export PDF Labels"
                 )}
               </button>
 
               <button onClick={handleCuttingMap}
                 disabled={!!isLoading || !nestingResult}
-                className="cnc-btn-ghost w-full text-sm py-2.5 flex items-center justify-center gap-2 mt-2 text-emerald-400 border-emerald-400/30 hover:bg-emerald-400/10">
+                className="ss-btn-ghost w-full text-sm py-2.5 flex items-center justify-center gap-2"
+                style={{ color: "#22c55e" }}>
                 {isLoading === "cuttingmap" ? (
-                  <><Spinner /> Generating PDF...</>
+                  <><Spinner /> Generating PDF…</>
                 ) : (
-                  <>Cutting Map PDF</>
+                  "Cutting Map PDF"
                 )}
               </button>
 
               <button onClick={handleGenerate}
                 disabled={!!isLoading || !nestingResult}
-                className="cnc-btn-primary w-full text-sm py-2.5 flex items-center justify-center gap-2 mt-2 shadow-lg shadow-cnc-accent/10">
+                className="ss-btn-primary w-full text-sm py-2.5 flex items-center justify-center gap-2">
                 {isLoading === "generating" ? (
-                  <><Spinner /> Generating...</>
+                  <><Spinner /> Generating…</>
                 ) : (
-                  <>
-                    Generate G-code
-                  </>
+                  "Generate G-code"
                 )}
               </button>
             </div>
 
             {/* Error */}
             {error && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3
-                              text-xs text-red-400 animate-fade-in">
+              <div className="rounded-lg p-3 text-xs animate-fade-in"
+                   style={{ backgroundColor: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "var(--ss-danger)" }}>
                 <p className="font-semibold mb-0.5">Error</p>
                 <p>{error}</p>
               </div>
             )}
 
+            {/* Job Estimate */}
+            {nestingResult && nestingResult.costing && (
+              <section className="rounded-lg p-3 animate-fade-in"
+                       style={{
+                         backgroundColor: "var(--ss-card)",
+                         border: "1px solid rgba(132,204,22,0.2)",
+                         boxShadow: "var(--ss-shadow-sm)",
+                       }}>
+                <h3 className="text-[10px] font-semibold uppercase tracking-widest mb-2 pb-1"
+                    style={{ color: "var(--ss-accent)", borderBottom: "1px solid rgba(132,204,22,0.15)" }}>
+                  Job Estimate
+                </h3>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="block text-[9px] uppercase" style={{ color: "var(--ss-text-muted)" }}>Material Cost</span>
+                    <span className="font-mono" style={{ color: "var(--ss-text)" }}>${nestingResult.costing.material_cost?.toFixed(2)}</span>
+                    <span className="ml-1" style={{ color: "var(--ss-text-muted)" }}>({nestingResult.costing.sheet_count} sheet{nestingResult.costing.sheet_count !== 1 ? 's' : ''})</span>
+                  </div>
+                  <div>
+                    <span className="block text-[9px] uppercase" style={{ color: "var(--ss-text-muted)" }}>Machine Labor</span>
+                    <span className="font-mono" style={{ color: "var(--ss-text)" }}>${nestingResult.costing.labor_cost?.toFixed(2)}</span>
+                    <span className="ml-1" style={{ color: "var(--ss-text-muted)" }}>({nestingResult.costing.machine_time_hours?.toFixed(1)} hrs)</span>
+                  </div>
+                  <div className="col-span-2 pt-2 mt-1 flex justify-between items-end" style={{ borderTop: "1px solid var(--ss-border)" }}>
+                    <span className="text-[10px] uppercase" style={{ color: "var(--ss-text-muted)" }}>Total Quote Price:</span>
+                    <span className="font-mono font-bold text-lg" style={{ color: "var(--ss-accent)" }}>${nestingResult.costing.total_estimate?.toFixed(2)}</span>
+                  </div>
+                </div>
+              </section>
+            )}
+
             {/* Nesting preview */}
             {nestingResult && (
               <section className="space-y-2 animate-fade-in">
-                <h3 className="text-xs font-semibold text-cnc-text-muted uppercase tracking-wider
-                               border-b border-cnc-border pb-1">
+                <h3 className="text-xs font-semibold uppercase tracking-wider pb-1"
+                    style={{ color: "var(--ss-text-muted)", borderBottom: "1px solid var(--ss-border)" }}>
                   Nesting Preview
                 </h3>
-                <div className="rounded-lg border border-cnc-border overflow-hidden bg-cnc-bg">
+                <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--ss-border)", backgroundColor: "var(--ss-bg)" }}>
                   <canvas ref={canvasRef} id="nesting-canvas" />
                 </div>
               </section>
@@ -648,13 +716,13 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
           <div className="space-y-4 animate-fade-in">
             <ParamSection title="Material & Sheet">
               <div className="flex items-center gap-2 mb-2">
-                <label className="text-xs text-cnc-text-muted w-28">Sheet Grain</label>
+                <label className="text-xs w-28" style={{ color: "var(--ss-text-muted)" }}>Sheet Grain</label>
                 <select value={settings.sheet_grain || "None"}
                   onChange={e => handleSettingsChange("sheet_grain", e.target.value)}
-                  className="cnc-input text-xs py-1.5 flex-1">
-                  <option value="None" className="bg-[#1A1A1A] text-white">None</option>
-                  <option value="Horizontal" className="bg-[#1A1A1A] text-white">Horizontal</option>
-                  <option value="Vertical" className="bg-[#1A1A1A] text-white">Vertical</option>
+                  className="ss-input text-xs py-1.5 flex-1">
+                  <option value="None">None</option>
+                  <option value="Horizontal">Horizontal</option>
+                  <option value="Vertical">Vertical</option>
                 </select>
               </div>
               <ParamField label={`Sheet W (${unitLabel})`} value={toDisplay(settings.sheet_w)}
@@ -707,12 +775,12 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
 
             <ParamSection title="PDF Labels Export">
               <div className="flex items-center gap-2 mb-2">
-                <label className="text-xs text-cnc-text-muted w-28">Format</label>
+                <label className="text-xs w-28" style={{ color: "var(--ss-text-muted)" }}>Format</label>
                 <select value={settings.label_format || "Roll Printer"}
                   onChange={e => handleSettingsChange("label_format", e.target.value)}
-                  className="cnc-input text-xs py-1.5 flex-1">
-                  <option value="Avery 5160" className="bg-[#1A1A1A] text-white">Avery 5160 (Letter)</option>
-                  <option value="Roll Printer" className="bg-[#1A1A1A] text-white">Roll Printer</option>
+                  className="ss-input text-xs py-1.5 flex-1">
+                  <option value="Avery 5160">Avery 5160 (Letter)</option>
+                  <option value="Roll Printer">Roll Printer</option>
                 </select>
               </div>
               {settings.label_format === "Roll Printer" && (
@@ -732,23 +800,23 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
           <div className="space-y-4 animate-fade-in">
             <ParamSection title="T6 Pocket Cutter">
               <div className="flex items-center gap-2 mb-2">
-                <label className="text-xs text-cnc-text-muted w-28">T-number</label>
+                <label className="text-xs w-28" style={{ color: "var(--ss-text-muted)" }}>T-number</label>
                 <select value={settings.t6_name}
                   onChange={e => handleSettingsChange("t6_name", e.target.value)}
-                  className="cnc-input text-xs py-1.5 flex-1">
+                  className="ss-input text-xs py-1.5 flex-1">
                   {Array.from({length: 9}, (_, i) => `T${i+1}`).map(t =>
                     <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div className="flex items-center gap-2 mb-2">
-                <label className="text-xs text-cnc-text-muted w-28">Type</label>
+                <label className="text-xs w-28" style={{ color: "var(--ss-text-muted)" }}>Type</label>
                 <div className="flex gap-3">
                   {["PCD", "TCT"].map(t => (
-                    <label key={t} className="flex items-center gap-1.5 text-xs text-cnc-text cursor-pointer">
+                    <label key={t} className="flex items-center gap-1.5 text-xs cursor-pointer" style={{ color: "var(--ss-text)" }}>
                       <input type="radio" name="toolType" value={t}
                         checked={settings.t6_type === t}
                         onChange={() => handleSettingsChange("t6_type", t)}
-                        className="accent-cnc-accent" />
+                        style={{ accentColor: "var(--ss-accent)" }} />
                       {t}
                     </label>
                   ))}
@@ -769,10 +837,12 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
                 {["Snake", "Spiral", "Climb (CCW)"].map(s => (
                   <button key={s}
                     onClick={() => handleSettingsChange("pocket_strategy", s)}
-                    className={`px-2 py-2 rounded-lg text-xs font-medium transition-all border
-                      ${settings.pocket_strategy === s
-                        ? "bg-cnc-accent/15 text-cnc-accent border-cnc-accent/30"
-                        : "bg-cnc-card text-cnc-text-muted border-cnc-border hover:border-cnc-accent/20"}`}>
+                    className="px-2 py-2 rounded-lg text-xs font-medium transition-all"
+                    style={{
+                      backgroundColor: settings.pocket_strategy === s ? "var(--ss-accent-soft)" : "var(--ss-card)",
+                      color: settings.pocket_strategy === s ? "var(--ss-accent)" : "var(--ss-text-muted)",
+                      border: `1px solid ${settings.pocket_strategy === s ? "rgba(132,204,22,0.25)" : "var(--ss-border)"}`,
+                    }}>
                     {s}
                   </button>
                 ))}
@@ -782,21 +852,21 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
             </ParamSection>
 
             <ParamSection title="Other Tools">
-              <div className="grid grid-cols-3 gap-2 text-[10px] text-cnc-text-muted">
-                <div className="bg-cnc-card rounded-lg p-2 border border-cnc-border">
-                  <p className="font-semibold text-cnc-text mb-1">{settings.t2_tool_t} D4</p>
+              <div className="grid grid-cols-3 gap-2 text-[10px]" style={{ color: "var(--ss-text-muted)" }}>
+                <div className="rounded-lg p-2" style={{ backgroundColor: "var(--ss-card)", border: "1px solid var(--ss-border)" }}>
+                  <p className="font-semibold mb-1" style={{ color: "var(--ss-text)" }}>{settings.t2_tool_t} D4</p>
                   <p>Corner rest</p>
-                  <p className="font-mono text-cnc-text">{toFeedDisplay(settings.t2_feed)} {feedLabel}</p>
+                  <p className="font-mono" style={{ color: "var(--ss-text)" }}>{toFeedDisplay(settings.t2_feed)} {feedLabel}</p>
                 </div>
-                <div className="bg-cnc-card rounded-lg p-2 border border-cnc-border">
-                  <p className="font-semibold text-cnc-text mb-1">{settings.t3_tool_t} D6</p>
+                <div className="rounded-lg p-2" style={{ backgroundColor: "var(--ss-card)", border: "1px solid var(--ss-border)" }}>
+                  <p className="font-semibold mb-1" style={{ color: "var(--ss-text)" }}>{settings.t3_tool_t} D6</p>
                   <p>Contour cut</p>
-                  <p className="font-mono text-cnc-text">{toFeedDisplay(settings.t3_feed)} {feedLabel}</p>
+                  <p className="font-mono" style={{ color: "var(--ss-text)" }}>{toFeedDisplay(settings.t3_feed)} {feedLabel}</p>
                 </div>
-                <div className="bg-cnc-card rounded-lg p-2 border border-cnc-border">
-                  <p className="font-semibold text-cnc-text mb-1">{settings.t5_tool_t} V90</p>
+                <div className="rounded-lg p-2" style={{ backgroundColor: "var(--ss-card)", border: "1px solid var(--ss-border)" }}>
+                  <p className="font-semibold mb-1" style={{ color: "var(--ss-text)" }}>{settings.t5_tool_t} V90</p>
                   <p>Chamfer/Miter</p>
-                  <p className="font-mono text-cnc-text">{toFeedDisplay(settings.t5_feed)} {feedLabel}</p>
+                  <p className="font-mono" style={{ color: "var(--ss-text)" }}>{toFeedDisplay(settings.t5_feed)} {feedLabel}</p>
                 </div>
               </div>
             </ParamSection>
@@ -815,8 +885,10 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
 function ParamSection({ title, children }) {
   return (
     <section className="space-y-2">
-      <h3 className="text-xs font-semibold text-cnc-text-muted uppercase tracking-wider
-                     border-b border-cnc-border pb-1">{title}</h3>
+      <h3 className="text-xs font-semibold uppercase tracking-wider pb-1"
+          style={{ color: "var(--ss-text-muted)", borderBottom: "1px solid var(--ss-border)" }}>
+        {title}
+      </h3>
       {children}
     </section>
   );
@@ -825,10 +897,10 @@ function ParamSection({ title, children }) {
 function ParamField({ label, value, onChange, step = "1", type = "number" }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <label className="text-xs text-cnc-text-muted whitespace-nowrap">{label}</label>
+      <label className="text-xs whitespace-nowrap" style={{ color: "var(--ss-text-muted)" }}>{label}</label>
       <input type={type} value={value ?? ""} step={step}
         onChange={e => onChange(parseFloat(e.target.value) || 0)}
-        className="cnc-input w-24 text-right text-xs" />
+        className="ss-input w-24 text-right text-xs" />
     </div>
   );
 }
@@ -838,8 +910,9 @@ function CheckField({ label, checked, onChange }) {
     <label className="flex items-center gap-2 cursor-pointer group">
       <input type="checkbox" checked={checked}
         onChange={e => onChange(e.target.checked)}
-        className="accent-cnc-accent w-3.5 h-3.5" />
-      <span className="text-xs text-cnc-text-muted group-hover:text-cnc-text transition-colors">
+        className="w-3.5 h-3.5"
+        style={{ accentColor: "var(--ss-accent)" }} />
+      <span className="text-xs transition-colors" style={{ color: "var(--ss-text-muted)" }}>
         {label}
       </span>
     </label>
