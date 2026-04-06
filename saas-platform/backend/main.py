@@ -77,6 +77,8 @@ _DEFAULT_SETTINGS = {
 _state = {
     "doors": [],
     "next_id": 1,
+    "offcuts": [],
+    "next_offcut_id": 1,
     "nesting_result": None,
     "settings": copy.deepcopy(_DEFAULT_SETTINGS),
     "active_profile_id": 1,
@@ -108,6 +110,17 @@ class DoorOut(BaseModel):
     qty: int
     type: str
     grain: str
+
+class OffcutIn(BaseModel):
+    w: float = Field(..., description="Width mm")
+    h: float = Field(..., description="Height mm")
+    qty: int = Field(1, description="Quantity")
+
+class OffcutOut(BaseModel):
+    id: int
+    w: float
+    h: float
+    qty: int
 
 
 class SettingsModel(BaseModel):
@@ -238,6 +251,35 @@ async def clear_doors(request: Request):
     _state["next_id"] = 1
     _state["nesting_result"] = None
     return {"ok": True}
+
+
+# ── Offcuts CRUD ─────────────────────────────────────────
+
+@app.get("/offcuts")
+async def list_offcuts():
+    return _state["offcuts"]
+
+@app.post("/offcuts", response_model=OffcutOut)
+async def add_offcut(offcut: OffcutIn):
+    new_o = {
+        "id": _state["next_offcut_id"],
+        "w": offcut.w,
+        "h": offcut.h,
+        "qty": offcut.qty,
+    }
+    _state["next_offcut_id"] += 1
+    _state["offcuts"].append(new_o)
+    _state["nesting_result"] = None
+    return new_o
+
+@app.delete("/offcuts/{offcut_id}")
+async def delete_offcut(offcut_id: int):
+    for i, o in enumerate(_state["offcuts"]):
+        if o["id"] == offcut_id:
+            del_o = _state["offcuts"].pop(i)
+            _state["nesting_result"] = None
+            return {"ok": True, "deleted": del_o}
+    raise HTTPException(404, "Offcut not found")
 
 
 @app.post("/jobs/import-batch")
@@ -429,6 +471,7 @@ async def nest(request: Request):
     s = _state["settings"]
     result = do_nesting(
         doors=_state["doors"],
+        offcuts=_state["offcuts"],
         sheet_w=s["sheet_w"], sheet_h=s["sheet_h"],
         margin=s["margin"], kerf=s["kerf"],
         allow_rotation=s["allow_rotation"],
@@ -526,7 +569,7 @@ async def create_cutting_map_pdf(request: Request):
     order_id = s.get("order_id", "")
     pdf_buffer = generate_cutting_map_pdf(
         sheets=_state["nesting_result"]["sheets"],
-        sheet_w=s["sheet_w"], sheet_h=s["sheet_h"],
+        sheets_meta=_state["nesting_result"]["sheets_meta"],
         mat_z=s["mat_z"], margin=s["margin"],
         order_id=order_id,
     )
@@ -557,11 +600,12 @@ async def generate_gcode(request: Request, req: GenerateRequest):
 
     results = []
     for idx in indices:
+        meta = nr["sheets_meta"][idx]
         gcode = generate_gcode_for_sheet(
             sheet_doors=sheets[idx],
             sheet_idx=idx,
             total_sheets=len(sheets),
-            sheet_w=s["sheet_w"], sheet_h=s["sheet_h"],
+            sheet_w=meta["w"], sheet_h=meta["h"],
             mat_z=s["mat_z"], margin=s["margin"],
             frame_w=s["frame_w"],
             pocket_depth=s["pocket_depth"],
@@ -598,8 +642,9 @@ async def generate_gcode(request: Request, req: GenerateRequest):
             "stats": {
                 "line_count": line_count,
                 "parts_on_sheet": len(sheets[idx]),
-                "sheet_w": s["sheet_w"],
-                "sheet_h": s["sheet_h"],
+                "sheet_w": meta["w"],
+                "sheet_h": meta["h"],
+                "is_offcut": meta.get("is_offcut", False),
                 **time_stats,
             },
         })

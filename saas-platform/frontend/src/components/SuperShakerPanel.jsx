@@ -4,9 +4,12 @@
  */
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { useTheme } from "./ThemeProvider.jsx";
-import {
-  listDoors, addDoor, deleteDoor, clearDoors, updateDoor,
-  getSettings, updateSettings, runNesting, generateFullGcode,
+import { 
+  listDoors, getSettings, addDoor, updateDoor, deleteDoor, clearDoors, 
+  updateSettings, listProfiles, loadProfile, saveProfile, createProfile, 
+  renameProfile, deleteProfile, uploadBatchExcel,
+  listOffcuts, addOffcut, deleteOffcut,
+  runNesting, generateFullGcode,
   parseGcode, downloadGcode, downloadLabelsPdf, downloadCuttingMapPdf, updateNestingResult
 } from "../services/EngineClient.js";
 
@@ -16,6 +19,7 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
 
   // ── State ─────────────────────────────────────────────
   const [doors, setDoors] = useState([]);
+  const [offcuts, setOffcuts] = useState([]);
   const [settings, setSettings] = useState(null);
   const [nestingResult, setNestingResult] = useState(null);
   const [isLoading, setIsLoading] = useState("");
@@ -27,6 +31,7 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
 
   // Add door form state
   const [newDoor, setNewDoor] = useState({ w: 400, h: 600, qty: 4, type: "Shaker", grain: "None" });
+  const [newOffcut, setNewOffcut] = useState({ w: 600, h: 400, qty: 1 });
   const [showCostSettings, setShowCostSettings] = useState(false);
   const [editingCell, setEditingCell] = useState(null);
   const [editingValue, setEditingValue] = useState("");
@@ -42,9 +47,10 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
   useEffect(() => {
     (async () => {
       try {
-        const [d, s] = await Promise.all([listDoors(), getSettings()]);
+        const [d, s, o] = await Promise.all([listDoors(), getSettings(), listOffcuts()]);
         setDoors(d);
         setSettings(s);
+        setOffcuts(o);
       } catch (e) {
         setError("Backend not available. Start the server first.");
       }
@@ -110,6 +116,26 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
     try {
       await clearDoors();
       setDoors([]);
+      setNestingResult(null);
+    } catch (e) {
+      setError(e.message);
+    }
+  }, []);
+
+  const handleAddOffcut = useCallback(async () => {
+    try {
+      const o = await addOffcut(newOffcut);
+      setOffcuts(prev => [...prev, o]);
+      setNestingResult(null);
+    } catch (e) {
+      setError(e.message);
+    }
+  }, [newOffcut]);
+
+  const handleDeleteOffcut = useCallback(async (id) => {
+    try {
+      await deleteOffcut(id);
+      setOffcuts(prev => prev.filter(o => o.id !== id));
       setNestingResult(null);
     } catch (e) {
       setError(e.message);
@@ -232,22 +258,27 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
   }, [onGcodeGenerated, settings]);
 
   const getDragTarget = useCallback((cx, cy) => {
-    if (!canvasRef.current || !settings) return null;
+    if (!canvasRef.current || !settings || !nestingResult) return null;
     const canvas = canvasRef.current;
     const cw = canvas.parentElement.clientWidth - 8;
-    const sw = settings.sheet_w;
-    const sh = settings.sheet_h;
-    const thumbW = Math.min(cw - 16, 300);
-    const thumbH = thumbW * (sh / sw);
-    const scale = thumbW / sw;
+    
+    let currentY = 28;
 
     const dRef = dragRef.current;
     let nw = dRef.rotated ? dRef.draggedPart.h : dRef.draggedPart.w;
     let nh = dRef.rotated ? dRef.draggedPart.w : dRef.draggedPart.h;
 
     for (let si = 0; si < nestingResult.sheets.length; si++) {
+      const meta = nestingResult.sheets_meta ? nestingResult.sheets_meta[si] : null;
+      const sw = meta ? meta.w : settings.sheet_w;
+      const sh = meta ? meta.h : settings.sheet_h;
+      
+      const thumbW = Math.min(cw - 16, 300);
+      const scale = thumbW / sw;
+      const thumbH = sh * scale;
+      
       const xo = (cw - thumbW) / 2;
-      const yo = si * (thumbH + 40) + 28;
+      const yo = currentY;
       
       if (cx >= xo && cx <= xo + thumbW && cy >= yo && cy <= yo + thumbH) {
         const x1 = cx - dRef.ox;
@@ -261,6 +292,7 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
           xo, yo, scale, thumbW, thumbH 
         };
       }
+      currentY += thumbH + 40;
     }
     return null;
   }, [nestingResult, settings]);
@@ -271,8 +303,9 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
     }
     const margin = settings.margin;
     const kerf = settings.kerf;
-    const sw = settings.sheet_w;
-    const sh = settings.sheet_h;
+    const meta = nestingResult.sheets_meta ? nestingResult.sheets_meta[targetSheetIndex] : null;
+    const sw = meta ? meta.w : settings.sheet_w;
+    const sh = meta ? meta.h : settings.sheet_h;
     const snapDist = 20;
 
     let snapTx = tx;
@@ -333,16 +366,29 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
     if (!nestingResult || !canvasRef.current || !settings) return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
-    const { sheets } = nestingResult;
+    const { sheets, sheets_meta } = nestingResult;
     if (!sheets.length) return;
 
     const dpr = window.devicePixelRatio || 1;
     const cw = canvas.parentElement.clientWidth - 8;
-    const sw = settings.sheet_w;
-    const sh = settings.sheet_h;
-    const thumbW = Math.min(cw - 16, 300);
-    const thumbH = thumbW * (sh / sw);
-    const totalH = sheets.length * (thumbH + 40) + 16;
+    
+    // First pass to compute metrics and total height
+    const metrics = sheets.map((_, si) => {
+      const meta = sheets_meta ? sheets_meta[si] : null;
+      const sw = meta ? meta.w : settings.sheet_w;
+      const sh = meta ? meta.h : settings.sheet_h;
+      const isOffcut = meta ? meta.is_offcut : false;
+      const thumbW = Math.min(cw - 16, 300);
+      const scale = thumbW / sw;
+      const thumbH = sh * scale;
+      return { sw, sh, isOffcut, thumbW, thumbH, scale };
+    });
+
+    let totalH = 16;
+    metrics.forEach(m => {
+      m.yo = totalH + 28 - 16; // offset padding
+      totalH += m.thumbH + 40;
+    });
 
     if (canvas.width !== cw * dpr || canvas.height !== totalH * dpr) {
       canvas.width = cw * dpr;
@@ -360,14 +406,14 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
     const partLabelColor = isDark ? "#e2e8f0" : "#1e293b";
 
     sheets.forEach((sheet, si) => {
+      const { sw, sh, isOffcut, thumbW, thumbH, scale, yo } = metrics[si];
       const xo = (cw - thumbW) / 2;
-      const yo = si * (thumbH + 40) + 28;
-      const scale = thumbW / sw;
 
       ctx.font = "600 11px Inter, system-ui";
       ctx.fillStyle = labelColor;
       ctx.textAlign = "center";
-      ctx.fillText(`Sheet ${si + 1}`, xo + thumbW / 2, yo - 8);
+      const suffix = isOffcut ? " (Offcut)" : "";
+      ctx.fillText(`Sheet ${si + 1}${suffix}`, xo + thumbW / 2, yo - 8);
 
       ctx.fillStyle = sheetBg;
       ctx.strokeStyle = sheetStroke;
@@ -424,7 +470,7 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
       
       let nw = dRef.rotated ? dRef.draggedPart.h : dRef.draggedPart.w;
       let nh = dRef.rotated ? dRef.draggedPart.w : dRef.draggedPart.h;
-      let scale = thumbW / sw;
+      let scale = 1;
 
       if (targetObj) {
         const { targetSheetIndex, rawTx, rawTy, xo, yo, scale: s, thumbH } = targetObj;
@@ -436,6 +482,10 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
         
         finalCanvasX = xo + snapped.tx * scale;
         finalCanvasY = yo + thumbH - (snapped.ty + nh) * scale;
+      } else {
+        const meta = nestingResult.sheets_meta ? nestingResult.sheets_meta[dRef.draggedOrigSheet] : null;
+        const sw = meta ? meta.w : settings.sheet_w;
+        scale = Math.min(cw - 16, 300) / sw;
       }
       
       const boxW = nw * scale;
@@ -472,16 +522,20 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
     const my = e.clientY - rect.top;
 
     const cw = canvas.parentElement.clientWidth - 8;
-    const sw = settings.sheet_w;
-    const sh = settings.sheet_h;
-    const thumbW = Math.min(cw - 16, 300);
-    const thumbH = thumbW * (sh / sw);
+    let currentY = 28;
 
     for (let si = 0; si < nestingResult.sheets.length; si++) {
       const sheet = nestingResult.sheets[si];
-      const xo = (cw - thumbW) / 2;
-      const yo = si * (thumbH + 40) + 28;
+      const meta = nestingResult.sheets_meta ? nestingResult.sheets_meta[si] : null;
+      const sw = meta ? meta.w : settings.sheet_w;
+      const sh = meta ? meta.h : settings.sheet_h;
+      
+      const thumbW = Math.min(cw - 16, 300);
       const scale = thumbW / sw;
+      const thumbH = sh * scale;
+      
+      const xo = (cw - thumbW) / 2;
+      const yo = currentY;
 
       if (mx >= xo && mx <= xo + thumbW && my >= yo && my <= yo + thumbH) {
         // Find part backwards so top part is picked first
@@ -510,6 +564,7 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
           }
         }
       }
+      currentY += thumbH + 40;
     }
   };
 
@@ -559,11 +614,15 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
     }
 
     if (targetSheetIndex !== -1) {
+      const meta = nestingResult.sheets_meta ? nestingResult.sheets_meta[targetSheetIndex] : null;
+      const tgt_sw = meta ? meta.w : settings.sheet_w;
+      const tgt_sh = meta ? meta.h : settings.sheet_h;
+      
       const margin = settings.margin;
       const kerf = settings.kerf;
       let collision = false;
 
-      if (tx < margin - 0.1 || ty < margin - 0.1 || tx + nw > sw - margin + 0.1 || ty + nh > sh - margin + 0.1) {
+      if (tx < margin - 0.1 || ty < margin - 0.1 || tx + nw > tgt_sw - margin + 0.1 || ty + nh > tgt_sh - margin + 0.1) {
         collision = true;
       }
 
@@ -948,6 +1007,84 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
                 </div>
               </section>
             )}
+
+            {/* Offcuts Inventory */}
+            <section className="space-y-3 pt-3 mt-1" style={{ borderTop: "2px dashed var(--ss-border)" }}>
+              <div className="flex items-center justify-between gap-3 px-1">
+                <h3 className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-2"
+                    style={{ color: "var(--ss-accent)" }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v4"/><polyline points="15 3 21 9 21 21s-1.5-1-4-1-4 1-4 1V9"/><line x1="2" x2="22" y1="9" y2="9"/><line x1="7" x2="7" y1="3" y2="9"/></svg>
+                  Offcuts / Remnants Inventory
+                </h3>
+                <span className="text-[9px] font-mono px-2 py-0.5 rounded-full" style={{ backgroundColor: "var(--ss-accent-soft)", color: "var(--ss-accent)" }}>
+                  {offcuts.length} pieces
+                </span>
+                <hr className="flex-1 opacity-20" style={{ borderColor: "var(--ss-border)" }} />
+              </div>
+
+              {/* Add offcut form */}
+              <div className="flex items-end gap-2 p-2 rounded-lg" style={{ backgroundColor: "var(--ss-card)", border: "1px solid var(--ss-border)" }}>
+                <div className="flex-1">
+                  <label className="block text-[9px] font-bold uppercase mb-1" style={{ color: "var(--ss-text-muted)" }}>Width {unitLabel}</label>
+                  <input type="number" className="ss-input text-xs py-1 text-center font-mono w-full"
+                    placeholder="W"
+                    value={toDisplay(newOffcut.w)}
+                    onChange={e => setNewOffcut({...newOffcut, w: fromDisplay(parseFloat(e.target.value) || 0)})} />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-[9px] font-bold uppercase mb-1" style={{ color: "var(--ss-text-muted)" }}>Height {unitLabel}</label>
+                  <input type="number" className="ss-input text-xs py-1 text-center font-mono w-full"
+                    placeholder="H"
+                    value={toDisplay(newOffcut.h)}
+                    onChange={e => setNewOffcut({...newOffcut, h: fromDisplay(parseFloat(e.target.value) || 0)})} />
+                </div>
+                <div className="w-16">
+                  <label className="block text-[9px] font-bold uppercase mb-1 text-center" style={{ color: "var(--ss-text-muted)" }}>Qty</label>
+                  <input type="number" className="ss-input text-xs py-1 text-center font-mono w-full"
+                    value={newOffcut.qty}
+                    onChange={e => setNewOffcut({...newOffcut, qty: parseInt(e.target.value) || 1})} min="1" />
+                </div>
+                <button 
+                  onClick={handleAddOffcut}
+                  className="ss-btn-primary px-3 py-1.5 text-[10px] font-bold active:scale-95 shadow-md shadow-lime-500/10"
+                >
+                  + Add
+                </button>
+              </div>
+
+              {offcuts.length > 0 && (
+                <div className="overflow-x-auto max-h-32 overflow-y-auto rounded-lg" style={{ border: "1px solid var(--ss-border)" }}>
+                  <table className="w-full text-xs">
+                    <thead style={{ backgroundColor: "var(--ss-card)" }} className="sticky top-0">
+                      <tr style={{ color: "var(--ss-text-muted)" }}>
+                        <th className="py-1 px-2 text-left font-medium">Offcut ID</th>
+                        <th className="py-1 px-2 text-center font-medium">W</th>
+                        <th className="py-1 px-2 text-center font-medium">H</th>
+                        <th className="py-1 px-2 text-center font-medium">Qty</th>
+                        <th className="py-1 px-1 w-6"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {offcuts.map(o => (
+                        <tr key={o.id} className="transition-colors" style={{ borderBottom: "1px solid var(--ss-border)" }}>
+                          <td className="py-1 px-2 font-mono" style={{ color: "var(--ss-accent)" }}>{o.id}</td>
+                          <td className="py-1 px-2 text-center font-mono">{toDisplay(o.w)}</td>
+                          <td className="py-1 px-2 text-center font-mono">{toDisplay(o.h)}</td>
+                          <td className="py-1 px-2 text-center font-mono">{o.qty}</td>
+                          <td className="py-1 px-1 text-center">
+                            <button onClick={() => handleDeleteOffcut(o.id)}
+                              className="text-xs transition-colors hover:text-red-500"
+                              style={{ color: "var(--ss-text-muted)" }}>
+                              ✕
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
 
             {/* Workflow buttons */}
             <div className="space-y-2">

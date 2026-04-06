@@ -62,6 +62,32 @@ export async function uploadBatchExcel(file) {
 }
 
 // ═══════════════════════════════════════════════════════════
+//  Offcuts
+// ═══════════════════════════════════════════════════════════
+
+export async function listOffcuts() {
+  const r = await fetch(`${API_BASE}/offcuts`);
+  if (!r.ok) throw new Error(`API error: ${r.status}`);
+  return r.json();
+}
+
+export async function addOffcut(offcut) {
+  const r = await fetch(`${API_BASE}/offcuts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(offcut),
+  });
+  if (!r.ok) throw new Error(`API error: ${r.status}`);
+  return r.json();
+}
+
+export async function deleteOffcut(id) {
+  const r = await fetch(`${API_BASE}/offcuts/${id}`, { method: "DELETE" });
+  if (!r.ok) throw new Error(`API error: ${r.status}`);
+  return r.json();
+}
+
+// ═══════════════════════════════════════════════════════════
 //  Settings
 // ═══════════════════════════════════════════════════════════
 

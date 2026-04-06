@@ -32,11 +32,12 @@ def _hatch_rect(c, rx, ry, rw, rh, spacing=4.5, lw=0.35):
     c.restoreState()
 
 
-def generate_cutting_map_pdf(sheets, sheet_w, sheet_h, mat_z, margin, order_id=""):
+def generate_cutting_map_pdf(sheets, sheets_meta, mat_z, margin, order_id=""):
     """
     Generate a B&W operator cutting map PDF.
 
     sheets: list of sheets, each sheet is a list of placed parts
+    sheets_meta: list of metadata dicts containing width and height for each sheet
     Returns: io.BytesIO buffer with PDF data
     """
     buf = io.BytesIO()
@@ -48,13 +49,19 @@ def generate_cutting_map_pdf(sheets, sheet_w, sheet_h, mat_z, margin, order_id="
     pm = 36  # page margin
     header_h = 85
     footer_h = 18
-    scale = min((pw - 2 * pm) / sheet_w, (ph - pm - header_h - footer_h) / sheet_h)
-    dw = sheet_w * scale
-    dh = sheet_h * scale
-    sx = (pw - dw) / 2
-    sy = footer_h + (ph - pm - header_h - footer_h - dh) / 2
 
     for si, sheet in enumerate(sheets):
+        meta = sheets_meta[si]
+        sheet_w = meta["w"]
+        sheet_h = meta["h"]
+        is_offcut = meta.get("is_offcut", False)
+
+        scale = min((pw - 2 * pm) / sheet_w, (ph - pm - header_h - footer_h) / sheet_h)
+        dw = sheet_w * scale
+        dh = sheet_h * scale
+        sx = (pw - dw) / 2
+        sy = footer_h + (ph - pm - header_h - footer_h - dh) / 2
+
         tp = len(sheet)
         am = sum(d['orig_w'] * d['orig_h'] for d in sheet) / 1e6
         am_sf = am * 10.7639
@@ -63,8 +70,9 @@ def generate_cutting_map_pdf(sheets, sheet_w, sheet_h, mat_z, margin, order_id="
         # ── Header ──────────────────────────────────────────────
         c.setFillGray(0)
         c.setFont("Helvetica-Bold", 16)
+        title_suffix = " (Offcut Re-use)" if is_offcut else ""
         c.drawString(pm, ph - pm - 14,
-                     f"Cutting Map  —  Sheet {si + 1} of {n_sheets}")
+                     f"Cutting Map  —  Sheet {si + 1} of {n_sheets}{title_suffix}")
         c.setFont("Helvetica", 9)
         c.setFillGray(0.25)
         c.drawString(pm, ph - pm - 26,

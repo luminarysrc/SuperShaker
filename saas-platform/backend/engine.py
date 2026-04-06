@@ -256,14 +256,23 @@ def calc_t6_params(D, z, tool_type, pass_type, doc):
 
 def do_nesting(doors, sheet_w, sheet_h, margin, kerf,
                allow_rotation=True, small_part_threshold=0.05,
-               nesting_iterations=100, sheet_grain="None"):
+               nesting_iterations=100, sheet_grain="None", offcuts=None):
     """
     Run MaxRects Monte Carlo nesting optimizer.
     doors: list of {'id', 'w', 'h', 'qty', 'type'}
     nesting_iterations: number of random permutations to try (first 6 are deterministic).
-    Returns: list of sheets, each sheet is a list of placed parts.
+    Returns: dict with "sheets" and "sheets_meta".
     """
     import random
+    
+    available_offcuts = []
+    if offcuts:
+        for o in offcuts:
+            for _ in range(o.get('qty', 1)):
+                available_offcuts.append({"w": o["w"], "h": o["h"], "id": o["id"], "is_offcut": True})
+        # Sort largest offcuts first
+        available_offcuts.sort(key=lambda x: x["w"] * x["h"], reverse=True)
+
 
     work_w = sheet_w - 2 * margin
     work_h = sheet_h - 2 * margin
@@ -344,8 +353,31 @@ def do_nesting(doors, sheet_w, sheet_h, margin, kerf,
             key=lambda x: x['sort_weight'], reverse=True)
 
         packed_sheets = []
+        packed_sheets_meta = []
+        offcut_pool = available_offcuts[:]
+
         while large_items or small_items:
+            s_w, s_h = sheet_w, sheet_h
+            is_offcut = False
+            o_id = None
+            if offcut_pool:
+                off = offcut_pool.pop(0)
+                s_w, s_h = off["w"], off["h"]
+                is_offcut = True
+                o_id = off["id"]
+
+            work_w = max(0, s_w - 2 * margin)
+            work_h = max(0, s_h - 2 * margin)
+            
+            if work_w <= 0 or work_h <= 0:
+                if is_offcut:
+                    continue
+                else:
+                    break
+
             packer = MaxRectsPacker(work_w, work_h)
+            work_cx = work_w / 2
+            work_cy = work_h / 2
             cur = []
             rem_l = []
             rem_s = []
@@ -389,34 +421,43 @@ def do_nesting(doors, sheet_w, sheet_h, margin, kerf,
                     rem_s.append(item)
 
             if not cur:
-                break
+                if is_offcut:
+                    continue
+                else:
+                    break
             packed_sheets.append(cur)
+            packed_sheets_meta.append({"w": s_w, "h": s_h, "is_offcut": is_offcut, "offcut_id": o_id})
             large_items = rem_l
             small_items = rem_s
 
-        # Selection: fewest sheets → max free area on last sheet
+        # Selection: metric should maximize yield or minimize waste
+        # Simple for now: fewest standard sheets, then maximize free area on last sheet
         free_last = 0
-        if packed_sheets:
+        if packed_sheets_meta:
             used_last = sum((r['w'] + kerf) * (r['h'] + kerf) for r in packed_sheets[-1])
-            free_last = work_w * work_h - used_last
+            free_last = (packed_sheets_meta[-1]['w'] * packed_sheets_meta[-1]['h']) - used_last
 
-        if len(packed_sheets) < min_sheets:
-            min_sheets = len(packed_sheets)
+        num_std_sheets = sum(1 for m in packed_sheets_meta if not m['is_offcut'])
+
+        if num_std_sheets < min_sheets:
+            min_sheets = num_std_sheets
             best_sheets = packed_sheets
+            best_sheets_meta = packed_sheets_meta
             best_free_last = free_last
-        elif len(packed_sheets) == min_sheets and free_last > best_free_last:
+        elif num_std_sheets == min_sheets and free_last > best_free_last:
             best_sheets = packed_sheets
+            best_sheets_meta = packed_sheets_meta
             best_free_last = free_last
 
     # Calculate stats
     total_parts = sum(len(s) for s in best_sheets)
     total_area = sum(d['orig_w'] * d['orig_h'] for s in best_sheets for d in s) / 1e6
-    sheet_area = sheet_w * sheet_h / 1e6
-    total_avail = sheet_area * len(best_sheets)
+    total_avail = sum(m['w'] * m['h'] for m in best_sheets_meta) / 1e6 if best_sheets_meta else 0
     yield_pct = (total_area / total_avail * 100) if total_avail else 0
 
     return {
         "sheets": best_sheets,
+        "sheets_meta": best_sheets_meta,
         "total_sheets": len(best_sheets),
         "total_parts": total_parts,
         "total_area_m2": round(total_area, 3),

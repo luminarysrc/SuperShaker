@@ -187,7 +187,7 @@ export default function ThreeViewer({ gcodeData, bedWidth = 2500, bedHeight = 12
         makeDefault
       />
 
-      <MachineBed width={bedWidth} height={bedHeight} />
+      <MachineBed key={`${bedWidth}-${bedHeight}`} width={bedWidth} height={bedHeight} />
       <GcodeLines gcodeData={gcodeData} />
       <ToolIndicator gcodeData={gcodeData} />
     </Canvas>

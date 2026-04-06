@@ -143,3 +143,10 @@ dist-ssr/
 # OS
 .DS_Store
 Thumbs.db
+
+# SuperShaker specific ignore
+*.pdf
+*.gcode
+*.nc
+*.csv
+*.xlsx

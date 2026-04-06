@@ -99,6 +99,13 @@ export default function GcodeViewerPanel({
     e.target.value = "";
   }, []);
 
+  // ── Sync with props ──────────────────────────────────
+  React.useEffect(() => {
+    setLocalGcode(null);
+    setLocalGcodeData(null);
+    setActiveSheet(0);
+  }, [gcodeData, allSheets]);
+
   // ── Switch sheet ──────────────────────────────────────
   const handleSheetSwitch = useCallback((idx) => {
     if (!allSheets || !allSheets[idx]) return;
