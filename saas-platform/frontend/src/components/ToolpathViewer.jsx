@@ -97,7 +97,7 @@ export default function ToolpathViewer() {
           >
             <p>Lines: <span style={{ color: "var(--ss-text)" }}>{stats.line_count}</span></p>
             <p>Rapid: <span className="text-sky-400">{gcodeData?.rapid.length || 0}</span>
-               {" "}Cut: <span className="text-green-500">{gcodeData?.cut.length || 0}</span></p>
+              {" "}Cut: <span className="text-green-500">{gcodeData?.cut.length || 0}</span></p>
             <p>Pattern: <span style={{ color: "var(--ss-text)" }}>{stats.pattern}</span></p>
           </div>
         )}
@@ -182,9 +182,9 @@ export default function ToolpathViewer() {
               <>
                 <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10"
-                          stroke="currentColor" strokeWidth="4" fill="none" />
+                    stroke="currentColor" strokeWidth="4" fill="none" />
                   <path className="opacity-75" fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
                 Generating…
               </>
@@ -196,7 +196,7 @@ export default function ToolpathViewer() {
           {/* Error */}
           {error && (
             <div className="rounded-lg p-3 text-xs animate-fade-in"
-                 style={{ backgroundColor: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "var(--ss-danger)" }}>
+              style={{ backgroundColor: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "var(--ss-danger)" }}>
               <p className="font-semibold mb-1">Error</p>
               <p>{error}</p>
             </div>
@@ -220,7 +220,7 @@ export default function ToolpathViewer() {
 
               {stats && (
                 <div className="rounded-lg p-3 space-y-1 text-xs font-mono"
-                     style={{ backgroundColor: "var(--ss-card)", border: "1px solid var(--ss-border)" }}>
+                  style={{ backgroundColor: "var(--ss-card)", border: "1px solid var(--ss-border)" }}>
                   <p style={{ color: "var(--ss-text-muted)" }}>Pattern: <span style={{ color: "var(--ss-text)" }}>{stats.pattern}</span></p>
                   <p style={{ color: "var(--ss-text-muted)" }}>Size: <span style={{ color: "var(--ss-text)" }}>{stats.part_size}</span></p>
                   <p style={{ color: "var(--ss-text-muted)" }}>Tool: <span style={{ color: "var(--ss-text)" }}>{stats.tool}</span></p>
@@ -237,11 +237,10 @@ export default function ToolpathViewer() {
     </div>
   );
 }
-
 function SectionTitle({ children }) {
   return (
     <h3 className="text-xs font-semibold uppercase tracking-wider pb-1"
-        style={{ color: "var(--ss-text-muted)", borderBottom: "1px solid var(--ss-border)" }}>
+      style={{ color: "var(--ss-text-muted)", borderBottom: "1px solid var(--ss-border)" }}>
       {children}
     </h3>
   );

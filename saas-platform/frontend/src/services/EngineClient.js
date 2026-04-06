@@ -214,6 +214,19 @@ export async function runNesting() {
   return r.json();
 }
 
+export async function updateNestingResult(customLayout) {
+  const r = await fetch(`${API_BASE}/update-nesting`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(customLayout),
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    throw new Error(err.detail || `API error: ${r.status}`);
+  }
+  return r.json();
+}
+
 // ═══════════════════════════════════════════════════════════
 //  G-code Generation
 // ═══════════════════════════════════════════════════════════

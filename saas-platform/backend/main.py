@@ -452,6 +452,12 @@ async def nest():
     return result
 
 
+@app.post("/update-nesting")
+async def update_nesting(payload: dict):
+    _state["nesting_result"] = payload
+    return {"ok": True}
+
+
 # ── Labels ───────────────────────────────────────────────
 
 from fastapi.responses import Response

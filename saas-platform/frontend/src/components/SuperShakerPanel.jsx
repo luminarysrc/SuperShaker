@@ -7,7 +7,7 @@ import { useTheme } from "./ThemeProvider.jsx";
 import {
   listDoors, addDoor, deleteDoor, clearDoors, updateDoor,
   getSettings, updateSettings, runNesting, generateFullGcode,
-  parseGcode, downloadGcode, downloadLabelsPdf, downloadCuttingMapPdf
+  parseGcode, downloadGcode, downloadLabelsPdf, downloadCuttingMapPdf, updateNestingResult
 } from "../services/EngineClient.js";
 
 export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, settingsVersion, doorsVersion }) {
@@ -22,6 +22,8 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
   const [error, setError] = useState(null);
   const [activeSection, setActiveSection] = useState("workflow");
   const canvasRef = useRef(null);
+  const dragRef = useRef({ isDragging: false });
+  const [editingPreviewPart, setEditingPreviewPart] = useState(null);
 
   // Add door form state
   const [newDoor, setNewDoor] = useState({ w: 400, h: 600, qty: 4, type: "Shaker", grain: "None" });
@@ -154,6 +156,34 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
     }
   }, [onNestingDone]);
 
+  const handleSavePreviewPart = async (updatedPart) => {
+    try {
+      const originalDoor = doors.find(d => d.id === editingPreviewPart.id);
+      if (!originalDoor) return;
+
+      if (originalDoor.qty > 1) {
+        await updateDoor(originalDoor.id, { ...originalDoor, qty: originalDoor.qty - 1 });
+        await addDoor({ 
+          w: updatedPart.w, h: updatedPart.h, qty: 1, 
+          type: updatedPart.type, grain: updatedPart.grain 
+        });
+      } else {
+        await updateDoor(originalDoor.id, {
+          ...originalDoor,
+          w: updatedPart.w, h: updatedPart.h,
+          type: updatedPart.type, grain: updatedPart.grain
+        });
+      }
+      
+      const d = await listDoors();
+      setDoors(d);
+      setNestingResult(null);
+      setEditingPreviewPart(null);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
   const handleGenerateLabels = useCallback(async () => {
     setIsLoading("labels");
     setError(null);
@@ -201,8 +231,105 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
     }
   }, [onGcodeGenerated, settings]);
 
-  // ── Draw nesting preview ──────────────────────────────
-  useEffect(() => {
+  const getDragTarget = useCallback((cx, cy) => {
+    if (!canvasRef.current || !settings) return null;
+    const canvas = canvasRef.current;
+    const cw = canvas.parentElement.clientWidth - 8;
+    const sw = settings.sheet_w;
+    const sh = settings.sheet_h;
+    const thumbW = Math.min(cw - 16, 300);
+    const thumbH = thumbW * (sh / sw);
+    const scale = thumbW / sw;
+
+    const dRef = dragRef.current;
+    let nw = dRef.rotated ? dRef.draggedPart.h : dRef.draggedPart.w;
+    let nh = dRef.rotated ? dRef.draggedPart.w : dRef.draggedPart.h;
+
+    for (let si = 0; si < nestingResult.sheets.length; si++) {
+      const xo = (cw - thumbW) / 2;
+      const yo = si * (thumbH + 40) + 28;
+      
+      if (cx >= xo && cx <= xo + thumbW && cy >= yo && cy <= yo + thumbH) {
+        const x1 = cx - dRef.ox;
+        const y1 = cy - dRef.oy;
+        
+        const rawTx = (x1 - xo) / scale;
+        const rawTy = (yo + thumbH - y1) / scale - nh;
+        
+        return { 
+          targetSheetIndex: si, rawTx, rawTy, nw, nh, 
+          xo, yo, scale, thumbW, thumbH 
+        };
+      }
+    }
+    return null;
+  }, [nestingResult, settings]);
+
+  const calculateSnap = useCallback((tx, ty, nw, nh, targetSheetIndex) => {
+    if (!nestingResult || targetSheetIndex < 0 || targetSheetIndex >= nestingResult.sheets.length) {
+      return { tx, ty };
+    }
+    const margin = settings.margin;
+    const kerf = settings.kerf;
+    const sw = settings.sheet_w;
+    const sh = settings.sheet_h;
+    const snapDist = 20;
+
+    let snapTx = tx;
+    let snapTy = ty;
+    
+    let closestXDist = snapDist;
+    let closestYDist = snapDist;
+
+    const trySnapX = (targetX) => {
+      const dist = Math.abs(tx - targetX);
+      if (dist < closestXDist) {
+        snapTx = targetX;
+        closestXDist = dist;
+      }
+    };
+
+    const trySnapY = (targetY) => {
+      const dist = Math.abs(ty - targetY);
+      if (dist < closestYDist) {
+        snapTy = targetY;
+        closestYDist = dist;
+      }
+    };
+
+    trySnapX(margin);
+    trySnapX(sw - margin - nw);
+    trySnapY(margin);
+    trySnapY(sh - margin - nh);
+
+    const sheet = nestingResult.sheets[targetSheetIndex];
+    const dRef = dragRef.current;
+    
+    for (let oi = 0; oi < sheet.length; oi++) {
+      if (targetSheetIndex === dRef.draggedOrigSheet && oi === dRef.draggedOrigIdx) continue;
+      
+      const other = sheet[oi];
+      const ow = other.rotated ? other.h : other.w;
+      const oh = other.rotated ? other.w : other.h;
+      
+      const overlapY = (ty < other.y + oh + snapDist) && (ty + nh > other.y - snapDist);
+      const overlapX = (tx < other.x + ow + snapDist) && (tx + nw > other.x - snapDist);
+
+      if (overlapY) {
+        trySnapX(other.x - nw - kerf);
+        trySnapX(other.x + ow + kerf);
+      }
+      
+      if (overlapX) {
+        trySnapY(other.y - nh - kerf);
+        trySnapY(other.y + oh + kerf);
+      }
+    }
+
+    return { tx: snapTx, ty: snapTy };
+  }, [nestingResult, settings]);
+
+  const drawCanvas = useCallback(() => {
     if (!nestingResult || !canvasRef.current || !settings) return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
@@ -217,11 +344,14 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
     const thumbH = thumbW * (sh / sw);
     const totalH = sheets.length * (thumbH + 40) + 16;
 
-    canvas.width = cw * dpr;
-    canvas.height = totalH * dpr;
-    canvas.style.width = cw + "px";
-    canvas.style.height = totalH + "px";
-    ctx.scale(dpr, dpr);
+    if (canvas.width !== cw * dpr || canvas.height !== totalH * dpr) {
+      canvas.width = cw * dpr;
+      canvas.height = totalH * dpr;
+      canvas.style.width = cw + "px";
+      canvas.style.height = totalH + "px";
+      ctx.scale(dpr, dpr);
+    }
+    
     ctx.clearRect(0, 0, cw, totalH);
 
     const labelColor = isDark ? "#a1a1aa" : "#52525b";
@@ -257,7 +387,13 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
         "Shaker Step": "#22c55e",
         "Slab": "#f59e0b",
       };
-      sheet.forEach(d => {
+      
+      sheet.forEach((d, j) => {
+        // Skip dragged part using sheet+index identity
+        if (dragRef.current.isDragging 
+            && si === dragRef.current.draggedOrigSheet 
+            && j === dragRef.current.draggedOrigIdx) return;
+
         const x1 = xo + d.x * scale;
         const y1 = yo + thumbH - (d.y + d.h) * scale;
         const w = d.w * scale;
@@ -277,7 +413,209 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
         }
       });
     });
-  }, [nestingResult, settings, isDark]);
+
+    // Draw dragged part on top
+    if (dragRef.current.isDragging) {
+      const dRef = dragRef.current;
+      const targetObj = getDragTarget(dRef.cx, dRef.cy);
+      
+      let finalCanvasX = dRef.cx - dRef.ox;
+      let finalCanvasY = dRef.cy - dRef.oy;
+      
+      let nw = dRef.rotated ? dRef.draggedPart.h : dRef.draggedPart.w;
+      let nh = dRef.rotated ? dRef.draggedPart.w : dRef.draggedPart.h;
+      let scale = thumbW / sw;
+
+      if (targetObj) {
+        const { targetSheetIndex, rawTx, rawTy, xo, yo, scale: s, thumbH } = targetObj;
+        scale = s;
+        nw = targetObj.nw;
+        nh = targetObj.nh;
+        
+        const snapped = calculateSnap(rawTx, rawTy, nw, nh, targetSheetIndex);
+        
+        finalCanvasX = xo + snapped.tx * scale;
+        finalCanvasY = yo + thumbH - (snapped.ty + nh) * scale;
+      }
+      
+      const boxW = nw * scale;
+      const boxH = nh * scale;
+
+      const c = "#ef4444"; // Highlight red while floating
+      ctx.fillStyle = c + "55";
+      ctx.strokeStyle = c;
+      ctx.lineWidth = 2;
+      ctx.fillRect(finalCanvasX, finalCanvasY, boxW, boxH);
+      ctx.strokeRect(finalCanvasX, finalCanvasY, boxW, boxH);
+      
+      ctx.font = "bold 8px JetBrains Mono, monospace";
+      ctx.fillStyle = "#fff";
+      ctx.textAlign = "center";
+      ctx.fillText(`${dRef.draggedPart.id}`, finalCanvasX + boxW / 2, finalCanvasY + boxH / 2 + 3);
+    }
+  }, [nestingResult, settings, isDark, getDragTarget, calculateSnap]);
+
+  useEffect(() => {
+    drawCanvas();
+  }, [drawCanvas]);
+
+  // ── Drag & Drop events ──────────────────────────────
+  const handlePointerDown = (e) => {
+    if (!nestingResult || !canvasRef.current || !settings) return;
+    const canvas = canvasRef.current;
+    
+    // Attempt focus to receive keydown
+    canvas.focus({ preventScroll: true });
+
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    const cw = canvas.parentElement.clientWidth - 8;
+    const sw = settings.sheet_w;
+    const sh = settings.sheet_h;
+    const thumbW = Math.min(cw - 16, 300);
+    const thumbH = thumbW * (sh / sw);
+
+    for (let si = 0; si < nestingResult.sheets.length; si++) {
+      const sheet = nestingResult.sheets[si];
+      const xo = (cw - thumbW) / 2;
+      const yo = si * (thumbH + 40) + 28;
+      const scale = thumbW / sw;
+
+      if (mx >= xo && mx <= xo + thumbW && my >= yo && my <= yo + thumbH) {
+        // Find part backwards so top part is picked first
+        for (let j = sheet.length - 1; j >= 0; j--) {
+          const d = sheet[j];
+          const x1 = xo + d.x * scale;
+          const y1 = yo + thumbH - (d.y + d.h) * scale;
+          const w = d.w * scale;
+          const h = d.h * scale;
+          
+          if (mx >= x1 && mx <= x1 + w && my >= y1 && my <= y1 + h) {
+            e.target.setPointerCapture(e.pointerId);
+            dragRef.current = {
+              isDragging: true,
+              draggedPart: d,
+              draggedOrigSheet: si,
+              draggedOrigIdx: j,  // store array index to uniquely identify this placement
+              cx: mx, cy: my,
+              ox: mx - x1, oy: my - y1,
+              rotated: false,
+              forcedRotate: false,
+              startMx: mx, startMy: my
+            };
+            drawCanvas();
+            return;
+          }
+        }
+      }
+    }
+  };
+
+  const handlePointerMove = (e) => {
+    if (!dragRef.current.isDragging) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    dragRef.current.cx = e.clientX - rect.left;
+    dragRef.current.cy = e.clientY - rect.top;
+    drawCanvas();
+  };
+
+  const handlePointerUp = async (e) => {
+    if (!dragRef.current.isDragging) return;
+    e.target.releasePointerCapture(e.pointerId);
+    
+    const dRef = dragRef.current;
+    dRef.isDragging = false;
+
+    // Check if it was a tiny movement (Click)
+    const dist = Math.hypot(dRef.cx - dRef.startMx, dRef.cy - dRef.startMy);
+    if (dist < 3 && !dRef.forcedRotate) {
+      const originalDoor = doors.find(door => door.id === dRef.draggedPart.id);
+      if (originalDoor) {
+        setEditingPreviewPart({ ...originalDoor });
+      }
+      drawCanvas();
+      return;
+    }
+
+    // Process Drop
+    const sw = settings.sheet_w;
+    const sh = settings.sheet_h;
+    
+    let targetSheetIndex = -1;
+    let tx = 0; let ty = 0;
+    let nw = dRef.rotated ? dRef.draggedPart.h : dRef.draggedPart.w;
+    let nh = dRef.rotated ? dRef.draggedPart.w : dRef.draggedPart.h;
+
+    const targetObj = getDragTarget(dRef.cx, dRef.cy);
+    if (targetObj) {
+      targetSheetIndex = targetObj.targetSheetIndex;
+      nw = targetObj.nw;
+      nh = targetObj.nh;
+      const snapped = calculateSnap(targetObj.rawTx, targetObj.rawTy, nw, nh, targetSheetIndex);
+      tx = snapped.tx;
+      ty = snapped.ty;
+    }
+
+    if (targetSheetIndex !== -1) {
+      const margin = settings.margin;
+      const kerf = settings.kerf;
+      let collision = false;
+
+      if (tx < margin - 0.1 || ty < margin - 0.1 || tx + nw > sw - margin + 0.1 || ty + nh > sh - margin + 0.1) {
+        collision = true;
+      }
+
+      if (!collision) {
+        const sheet = nestingResult.sheets[targetSheetIndex];
+        for (let oi = 0; oi < sheet.length; oi++) {
+          const other = sheet[oi];
+          if (oi === dRef.draggedOrigIdx && targetSheetIndex === dRef.draggedOrigSheet) continue;
+          
+          if (tx < other.x + other.w + kerf - 0.1 && tx + nw + kerf > other.x + 0.1 &&
+              ty < other.y + other.h + kerf - 0.1 && ty + nh + kerf > other.y + 0.1) {
+             collision = true;
+             break;
+          }
+        }
+      }
+
+      if (!collision) {
+        const newSheets = nestingResult.sheets.map(s => [...s]);
+        
+        newSheets[dRef.draggedOrigSheet] = newSheets[dRef.draggedOrigSheet].filter((_, idx) => idx !== dRef.draggedOrigIdx);
+        
+        newSheets[targetSheetIndex].push({
+          ...dRef.draggedPart,
+          x: tx, y: ty, w: nw, h: nh,
+          rotated: false
+        });
+
+        const newNesting = { ...nestingResult, sheets: newSheets };
+        setNestingResult(newNesting);
+        try {
+          await updateNestingResult(newNesting);
+        } catch (e) {
+          setError("Failed to sync layout to backend: " + e.message);
+        }
+        return;
+      }
+    }
+
+    // Invalid drop
+    drawCanvas();
+  };
+
+  const handleCanvasKeyDown = (e) => {
+    if (e.key === 'r' || e.key === 'R') {
+      if (dragRef.current.isDragging) {
+         dragRef.current.rotated = !dragRef.current.rotated;
+         dragRef.current.forcedRotate = true;
+         drawCanvas();
+      }
+    }
+  };
 
   if (!settings) {
     return (
@@ -703,8 +1041,18 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
                     style={{ color: "var(--ss-text-muted)", borderBottom: "1px solid var(--ss-border)" }}>
                   Nesting Preview
                 </h3>
-                <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--ss-border)", backgroundColor: "var(--ss-bg)" }}>
-                  <canvas ref={canvasRef} id="nesting-canvas" />
+                <div className="rounded-lg overflow-hidden flex flex-col items-center" style={{ border: "1px solid var(--ss-border)", backgroundColor: "var(--ss-bg)" }}>
+                  <canvas 
+                    ref={canvasRef} 
+                    id="nesting-canvas" 
+                    onPointerDown={handlePointerDown}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onKeyDown={handleCanvasKeyDown}
+                    tabIndex={0}
+                    className="cursor-pointer outline-none" 
+                  />
+                  <p className="text-[10px] text-center w-full py-1 opacity-50 block">Drag & Drop to move parts. Press 'R' while dragging to rotate.</p>
                 </div>
               </section>
             )}
@@ -874,6 +1222,17 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
         )}
 
       </div>
+
+      {editingPreviewPart && (
+        <EditPreviewDoorModal
+          part={editingPreviewPart}
+          onSave={handleSavePreviewPart}
+          onCancel={() => setEditingPreviewPart(null)}
+          toDisplay={toDisplay}
+          fromDisplay={fromDisplay}
+          unitLabel={unitLabel}
+        />
+      )}
     </div>
   );
 }
@@ -898,26 +1257,112 @@ function ParamField({ label, value, onChange, step = "1", type = "number" }) {
   return (
     <div className="flex items-center justify-between gap-3">
       <label className="text-xs whitespace-nowrap" style={{ color: "var(--ss-text-muted)" }}>{label}</label>
-      <input type={type} value={value ?? ""} step={step}
-        onChange={e => onChange(parseFloat(e.target.value) || 0)}
-        className="ss-input w-24 text-right text-xs" />
+      <input
+        type={type}
+        step={step}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="ss-input text-xs w-20 py-1"
+      />
     </div>
   );
 }
 
-function CheckField({ label, checked, onChange }) {
+function CheckField({ label, checked, onChange, disabled }) {
   return (
-    <label className="flex items-center gap-2 cursor-pointer group">
-      <input type="checkbox" checked={checked}
+    <label className={`flex items-center justify-between gap-3 ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+      <span className="text-xs whitespace-nowrap" style={{ color: "var(--ss-text-muted)" }}>{label}</span>
+      <input
+        type="checkbox"
+        checked={checked}
         onChange={e => onChange(e.target.checked)}
-        className="w-3.5 h-3.5"
-        style={{ accentColor: "var(--ss-accent)" }} />
-      <span className="text-xs transition-colors" style={{ color: "var(--ss-text-muted)" }}>
-        {label}
-      </span>
+        disabled={disabled}
+        className="w-4 h-4 rounded"
+        style={{ accentColor: "var(--ss-accent)" }}
+      />
     </label>
   );
 }
+
+const typeColors = {
+  "Shaker": { bg: "rgba(59, 130, 246, 0.15)", border: "#3b82f6", text: "#60a5fa" },
+  "Shaker Step": { bg: "rgba(34, 197, 94, 0.15)", border: "#22c55e", text: "#4ade80" },
+  "Slab": { bg: "rgba(245, 158, 11, 0.15)", border: "#f59e0b", text: "#fbbf24" }
+};
+
+function EditPreviewDoorModal({ part, onSave, onCancel, toDisplay, fromDisplay, unitLabel }) {
+  const [formData, setFormData] = useState({ ...part });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+      <div className="w-full max-w-xs rounded-xl p-6 shadow-2xl" style={{ backgroundColor: "var(--ss-panel)", border: "1px solid var(--ss-border)" }}>
+        <h3 className="text-sm font-bold mb-4" style={{ color: "var(--ss-text)" }}>Edit Facade Details</h3>
+        
+        <div className="space-y-4">
+          <div>
+            <label className="text-[10px] block mb-1 uppercase tracking-wider" style={{ color: "var(--ss-text-muted)" }}>Width ({unitLabel})</label>
+            <input 
+              type="number" 
+              value={toDisplay(formData.w)}
+              onChange={e => setFormData(f => ({...f, w: fromDisplay(parseFloat(e.target.value) || 0)}))}
+              className="ss-input w-full text-sm" 
+            />
+          </div>
+          <div>
+            <label className="text-[10px] block mb-1 uppercase tracking-wider" style={{ color: "var(--ss-text-muted)" }}>Height ({unitLabel})</label>
+            <input 
+              type="number" 
+              value={toDisplay(formData.h)}
+              onChange={e => setFormData(f => ({...f, h: fromDisplay(parseFloat(e.target.value) || 0)}))}
+              className="ss-input w-full text-sm" 
+            />
+          </div>
+          <div>
+            <label className="text-[10px] block mb-1 uppercase tracking-wider" style={{ color: "var(--ss-text-muted)" }}>Type</label>
+            <select 
+              value={formData.type}
+              onChange={e => setFormData(f => ({...f, type: e.target.value}))}
+              className="ss-input w-full text-sm"
+            >
+              <option value="Shaker">Shaker</option>
+              <option value="Shaker Step">Shaker Step</option>
+              <option value="Slab">Slab</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] block mb-1 uppercase tracking-wider" style={{ color: "var(--ss-text-muted)" }}>Grain Direction</label>
+            <select 
+              value={formData.grain || "None"}
+              onChange={e => setFormData(f => ({...f, grain: e.target.value}))}
+              className="ss-input w-full text-sm"
+            >
+              <option value="None">None</option>
+              <option value="Horizontal">Horizontal</option>
+              <option value="Vertical">Vertical</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="flex gap-3 mt-6">
+          <button 
+            onClick={onCancel}
+            className="flex-1 px-4 py-2 rounded-lg text-xs font-semibold hover:bg-white/5 transition-colors"
+            style={{ border: "1px solid var(--ss-border)", color: "var(--ss-text)" }}
+          >
+            Cancel
+          </button>
+          <button 
+            onClick={() => onSave(formData)}
+            className="flex-1 px-4 py-2 rounded-lg text-xs font-semibold ss-btn-primary"
+          >
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 function Spinner() {
   return (
