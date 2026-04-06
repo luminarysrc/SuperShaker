@@ -7,9 +7,12 @@ Run with: uvicorn main:app --reload --port 8000
 import copy
 import io
 import pandas as pd
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from typing import Optional, Dict
 
 from engine import do_nesting, generate_gcode_for_sheet, calc_t6_params
@@ -25,6 +28,10 @@ app = FastAPI(
     description="CNC G-code generation & nesting engine API",
     version="0.2.0-beta",
 )
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -177,19 +184,22 @@ class LabelRequest(BaseModel):
 # ════════════════════════════════════════════════════════════
 
 @app.get("/health")
-async def health_check():
+@limiter.limit("100/minute")
+async def health_check(request: Request):
     return {"status": "ok", "version": "0.2.0-beta"}
 
 
 # ── Doors CRUD ───────────────────────────────────────────
 
 @app.get("/doors")
-async def list_doors():
+@limiter.limit("100/minute")
+async def list_doors(request: Request):
     return _state["doors"]
 
 
 @app.post("/doors")
-async def add_door(door: DoorIn):
+@limiter.limit("100/minute")
+async def add_door(request: Request, door: DoorIn):
     d = {
         "id": _state["next_id"],
         "w": door.w, "h": door.h,
@@ -203,7 +213,8 @@ async def add_door(door: DoorIn):
 
 
 @app.put("/doors/{door_id}")
-async def update_door(door_id: int, door: DoorIn):
+@limiter.limit("100/minute")
+async def update_door(request: Request, door_id: int, door: DoorIn):
     for d in _state["doors"]:
         if d["id"] == door_id:
             d.update({"w": door.w, "h": door.h, "qty": door.qty, "type": door.type, "grain": door.grain})
@@ -213,14 +224,16 @@ async def update_door(door_id: int, door: DoorIn):
 
 
 @app.delete("/doors/{door_id}")
-async def delete_door(door_id: int):
+@limiter.limit("100/minute")
+async def delete_door(request: Request, door_id: int):
     _state["doors"] = [d for d in _state["doors"] if d["id"] != door_id]
     _state["nesting_result"] = None
     return {"ok": True}
 
 
 @app.delete("/doors")
-async def clear_doors():
+@limiter.limit("100/minute")
+async def clear_doors(request: Request):
     _state["doors"] = []
     _state["next_id"] = 1
     _state["nesting_result"] = None
@@ -228,7 +241,8 @@ async def clear_doors():
 
 
 @app.post("/jobs/import-batch")
-async def import_batch(file: UploadFile = File(...)):
+@limiter.limit("10/minute")
+async def import_batch(request: Request, file: UploadFile = File(...)):
     if not file.filename.endswith((".xlsx", ".csv")):
         raise HTTPException(400, "Invalid file format. Only .xlsx and .csv allowed.")
     
@@ -311,12 +325,14 @@ async def import_batch(file: UploadFile = File(...)):
 # ── Settings ─────────────────────────────────────────────
 
 @app.get("/settings")
-async def get_settings():
+@limiter.limit("100/minute")
+async def get_settings(request: Request):
     return _state["settings"]
 
 
 @app.put("/settings")
-async def update_settings(s: SettingsModel):
+@limiter.limit("100/minute")
+async def update_settings(request: Request, s: SettingsModel):
     for k, v in s.model_dump(exclude_none=True).items():
         _state["settings"][k] = v
     return _state["settings"]
@@ -325,7 +341,8 @@ async def update_settings(s: SettingsModel):
 # ── Machine Profiles ─────────────────────────────────────
 
 @app.get("/profiles")
-async def list_profiles():
+@limiter.limit("100/minute")
+async def list_profiles(request: Request):
     return {
         "profiles": [{"id": p["id"], "name": p["name"]} for p in _profiles],
         "active_id": _state["active_profile_id"],
@@ -333,7 +350,8 @@ async def list_profiles():
 
 
 @app.post("/profiles")
-async def create_profile(body: ProfileIn):
+@limiter.limit("100/minute")
+async def create_profile(request: Request, body: ProfileIn):
     global _profile_next_id
     profile = {
         "id": _profile_next_id,
@@ -347,7 +365,8 @@ async def create_profile(body: ProfileIn):
 
 
 @app.put("/profiles/{profile_id}")
-async def rename_profile(profile_id: int, body: ProfileIn):
+@limiter.limit("100/minute")
+async def rename_profile(request: Request, profile_id: int, body: ProfileIn):
     for p in _profiles:
         if p["id"] == profile_id:
             p["name"] = body.name
@@ -356,7 +375,8 @@ async def rename_profile(profile_id: int, body: ProfileIn):
 
 
 @app.delete("/profiles/{profile_id}")
-async def delete_profile(profile_id: int):
+@limiter.limit("100/minute")
+async def delete_profile(request: Request, profile_id: int):
     if len(_profiles) <= 1:
         raise HTTPException(400, "Cannot delete the last profile")
     idx = next((i for i, p in enumerate(_profiles) if p["id"] == profile_id), None)
@@ -370,7 +390,8 @@ async def delete_profile(profile_id: int):
 
 
 @app.post("/profiles/{profile_id}/load")
-async def load_profile(profile_id: int):
+@limiter.limit("100/minute")
+async def load_profile(request: Request, profile_id: int):
     for p in _profiles:
         if p["id"] == profile_id:
             _state["settings"] = copy.deepcopy(p["settings"])
@@ -380,7 +401,8 @@ async def load_profile(profile_id: int):
 
 
 @app.post("/profiles/{profile_id}/save")
-async def save_profile(profile_id: int):
+@limiter.limit("100/minute")
+async def save_profile(request: Request, profile_id: int):
     for p in _profiles:
         if p["id"] == profile_id:
             p["settings"] = copy.deepcopy(_state["settings"])
@@ -391,14 +413,16 @@ async def save_profile(profile_id: int):
 # ── Chip-load Calculator ─────────────────────────────────
 
 @app.post("/calc-params")
-async def calc_params(req: CalcParamsRequest):
+@limiter.limit("100/minute")
+async def calc_params(request: Request, req: CalcParamsRequest):
     return calc_t6_params(req.D, req.z, req.tool_type, req.pass_type, req.doc)
 
 
 # ── Nesting ──────────────────────────────────────────────
 
 @app.post("/nest")
-async def nest():
+@limiter.limit("10/minute")
+async def nest(request: Request):
     if not _state["doors"]:
         raise HTTPException(400, "No parts to nest")
 
@@ -453,7 +477,8 @@ async def nest():
 
 
 @app.post("/update-nesting")
-async def update_nesting(payload: dict):
+@limiter.limit("100/minute")
+async def update_nesting(request: Request, payload: dict):
     _state["nesting_result"] = payload
     return {"ok": True}
 
@@ -463,7 +488,8 @@ async def update_nesting(payload: dict):
 from fastapi.responses import Response
 
 @app.post("/labels/pdf")
-async def create_labels_pdf(req: LabelRequest):
+@limiter.limit("10/minute")
+async def create_labels_pdf(request: Request, req: LabelRequest):
     pdf_buffer = generate_labels_pdf(req, _state["settings"])
     return Response(
         content=pdf_buffer.getvalue(),
@@ -472,7 +498,8 @@ async def create_labels_pdf(req: LabelRequest):
     )
 
 @app.get("/labels/pdf")
-async def create_labels_pdf_get():
+@limiter.limit("10/minute")
+async def create_labels_pdf_get(request: Request):
     order_id = _state["settings"].get("order_id", "")
     req = LabelRequest(
         order_id=order_id,
@@ -491,7 +518,8 @@ async def create_labels_pdf_get():
 from cutting_map import generate_cutting_map_pdf
 
 @app.get("/cutting-map/pdf")
-async def create_cutting_map_pdf():
+@limiter.limit("10/minute")
+async def create_cutting_map_pdf(request: Request):
     if not _state["nesting_result"] or not _state["nesting_result"]["sheets"]:
         raise HTTPException(400, "No nesting result. Run nesting first.")
     s = _state["settings"]
@@ -511,7 +539,8 @@ async def create_cutting_map_pdf():
 # ── G-code Generation ────────────────────────────────────
 
 @app.post("/generate-gcode")
-async def generate_gcode(req: GenerateRequest):
+@limiter.limit("10/minute")
+async def generate_gcode(request: Request, req: GenerateRequest):
     nr = _state["nesting_result"]
     if not nr or not nr["sheets"]:
         raise HTTPException(400, "Run nesting first")
