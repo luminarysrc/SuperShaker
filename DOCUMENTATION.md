@@ -24,11 +24,14 @@ The frontend provides a real-time, interactive environment.
 
 ## 📐 Core Algorithms
 
-### 2D Nesting (MaxRects)
+### 2D Nesting (MaxRects & Manual)
 The platform uses the **Maximal Rectangles** heuristic to pack part rectangles into a larger sheet.
 - **Rotation**: Parts can be rotated 90° if the "Allow Rotation" setting is enabled.
 - **Margin & Kerf**: The algorithm accounts for sheet margins and the "kerf" (tool diameter width) to prevent part overlapping and ensure clean cutouts.
 - **Multi-Sheet Support**: If parts exceed a single sheet, the algorithm intelligently overflows into additional sheets.
+- **Manual Adjustment Engine**: After nesting, the UI allows full manual override. Any modification (dragging or rotating) is instantly synced with the backend to ensure subsequent G-code is accurate.
+  - **Dynamic Snapping**: Uses a 20mm threshold to snap parts perfectly to margins or adjacent parts (including kerf buffers).
+  - **Collision Validation**: A server-side and client-side check prevents dropping parts in a way that violates CAM constraints.
 
 ### G-Code Generation Strategies
 - **Snake (Zig-Zag)**: For efficient large-area material removal with minimal air-travel.
@@ -45,6 +48,11 @@ The platform uses the **Maximal Rectangles** heuristic to pack part rectangles i
    - **Shaker**: Standard frame-and-panel.
    - **Shaker Step**: Layered Shaker design with an additional internal step.
    - **Slab**: Simple contour cutout.
+3. **Manual Adjustments**:
+   - **Drag & Drop**: Click and hold a part in the nesting preview canvas to move it.
+   - **Rotate**: While dragging, press the **`R`** key to rotate the part 90°.
+   - **Snapping**: Parts will automatically "jump" to the nearest edge or neighbor when within range.
+   - **Edit**: A single click on a part (without dragging) opens a modal to edit its specific dimensions or type.
 
 ### Machine Profiles
 - Use the **Gear Icon (⚙️)** in the sidebar to manage CNC configurations.
