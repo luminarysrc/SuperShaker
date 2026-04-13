@@ -501,6 +501,66 @@ def optimize_path(doors, cx, cy):
 
 
 # ════════════════════════════════════════════════════════════════════════
+#  Helper: Tab / Bridge Insertion
+# ════════════════════════════════════════════════════════════════════════
+
+def _insert_tabs_on_segment(cl, axis, p0, p1, z_cut, tab_h, tab_w, n_tabs, cut_feed, tab_feed):
+    """
+    Emit G-code for a single axis-aligned straight segment that includes
+    raised tabs (bridges) to keep the work-piece on the vacuum table.
+
+    cl        – G-code line list to append to
+    axis      – 'X' or 'Y'
+    p0, p1    – start and end coordinate along 'axis' (monotonic, either direction)
+    z_cut     – Z depth of normal cut (e.g. -0.2)
+    tab_h     – how far the cutter rises ABOVE z_cut for the bridge (e.g. 0.4 mm)
+    tab_w     – width of each bridge (mm)
+    n_tabs    – number of tabs to insert on this segment
+    cut_feed  – feedrate for normal cutting
+    tab_feed  – feedrate for the slow Z lift / traverse / lower over the tab
+    """
+    seg_len = abs(p1 - p0)
+    direction = 1 if p1 >= p0 else -1
+
+    # Spacing between tab centres
+    if n_tabs < 1 or seg_len < tab_w * 3:
+        # Segment too short for tabs — cut straight through
+        if axis == 'X':
+            cl.append(f"G1 X{p1:.3f} F{cut_feed}")
+        else:
+            cl.append(f"G1 Y{p1:.3f} F{cut_feed}")
+        return
+
+    spacing = seg_len / (n_tabs + 1)
+    pos = p0
+    z_tab = round(z_cut + tab_h, 3)
+
+    for i in range(n_tabs):
+        tab_center = p0 + direction * spacing * (i + 1)
+        tab_start  = tab_center - direction * tab_w / 2
+        tab_end    = tab_center + direction * tab_w / 2
+
+        # Cut up to tab start
+        if axis == 'X':
+            cl.append(f"G1 X{tab_start:.3f} F{cut_feed}")
+            cl.append(f"G1 Z{z_tab:.3f} F{tab_feed}")
+            cl.append(f"G1 X{tab_end:.3f} F{tab_feed}")
+            cl.append(f"G1 Z{z_cut:.3f} F{tab_feed}")
+        else:
+            cl.append(f"G1 Y{tab_start:.3f} F{cut_feed}")
+            cl.append(f"G1 Z{z_tab:.3f} F{tab_feed}")
+            cl.append(f"G1 Y{tab_end:.3f} F{tab_feed}")
+            cl.append(f"G1 Z{z_cut:.3f} F{tab_feed}")
+        pos = tab_end
+
+    # Final cut to end of segment
+    if axis == 'X':
+        cl.append(f"G1 X{p1:.3f} F{cut_feed}")
+    else:
+        cl.append(f"G1 Y{p1:.3f} F{cut_feed}")
+
+
+# ════════════════════════════════════════════════════════════════════════
 #  G-code Generator
 # ════════════════════════════════════════════════════════════════════════
 
@@ -521,6 +581,8 @@ def generate_gcode_for_sheet(
     do_pocket=True, do_corners_rest=True,
     do_french_miter=True, do_cutout=True, do_rough_pass=False,
     common_line=False,
+    # Tabs (bridges) for small parts
+    do_tabs=True, tab_height=0.4, tab_width=4.0, tab_min_area=50000.0,
     # Other tools
     kerf=6.0, corner_r=1.0, feed_xy=8000,
     t2_tool_t="T2", t2_spindle=18000, t2_feed=6000,
@@ -907,12 +969,17 @@ def generate_gcode_for_sheet(
             cl += ["G0 Z50.0", "G0 Y3000.0", "M5", "M30", "%"]
             cl = _sanitize_gcode(cl)
             return "\n".join(cl)
-        
+
         cl.append("(--- OP4: CUTOUT T3 D6 ---)")
         cl.append(f"{t3_tool_t} M6")
         cl.append(f"S{t3_spindle} M3")
         cl.append("")
         mg_val = margin
+
+        # Tab / bridge precomputed values
+        _tab_feed = max(300, t3_feed_cut // 6)
+        _z_cut = -0.2
+
         doors_sorted = sorted(sheet_doors, key=lambda d: d['orig_w'] * d['orig_h'])
         for d in optimize_path(doors_sorted, curr_x, curr_y):
             ox_min = d['x'] - 3.0
@@ -920,6 +987,16 @@ def generate_gcode_for_sheet(
             oy_min = d['y'] - 3.0
             oy_max = d['y'] + d['h'] + 3.0
             rx = out_r + 3.0
+
+            # Determine if tabs should be applied to this part
+            _part_area = d['orig_w'] * d['orig_h']
+            _use_tabs = (
+                do_tabs
+                and d.get('is_small', False)
+                and _part_area <= tab_min_area
+            )
+            # Number of tabs per straight side — 1 for very small, 2 for moderately small
+            _n_tabs = 1 if _part_area <= tab_min_area * 0.25 else 2
 
             # Entry side detection
             dl = d['x'] - mg_val
@@ -936,7 +1013,8 @@ def generate_gcode_for_sheet(
             else:
                 es = 'B'
 
-            cl.append(f"(TYPE: {d['type']} | T3 ID {d['id']}  entry={es})")
+            _tab_note = " [TABS]" if _use_tabs else ""
+            cl.append(f"(TYPE: {d['type']} | T3 ID {d['id']}  entry={es}{_tab_note})")
 
             _t3d = kerf
             ramp_len = round(min(max(4.0 * _t3d, 24.0), 60.0), 1)
@@ -964,66 +1042,80 @@ def generate_gcode_for_sheet(
                 else:
                     cl.append(f"G1 X{p0:.3f} F{ramp_feed}")
 
+            # ── Helper: emit one straight segment, optionally with tabs ──
+            def cut_seg(axis, p0, p1):
+                if _use_tabs:
+                    _insert_tabs_on_segment(
+                        cl, axis, p0, p1, _z_cut,
+                        tab_height, tab_width, _n_tabs,
+                        t3_feed_cut, _tab_feed
+                    )
+                else:
+                    if axis == 'X':
+                        cl.append(f"G1 X{p1:.3f} F{t3_feed_cut}")
+                    else:
+                        cl.append(f"G1 Y{p1:.3f} F{t3_feed_cut}")
+
             if es == 'L':
                 sy_s = oy_min + rx
                 p1_ramp = min(sy_s + 999.0, oy_max - rx)
                 cl.append(f"G0 X{ox_min:.3f} Y{sy_s:.3f} Z{z_top + 5.0}")
                 cl.append(f"G1 Z{z_top:.3f} F2000")
-                zigzag(cl, 'Y', sy_s, p1_ramp, z_top, -0.2, ramp_len, ramp_dz, ramp_feed)
-                cl.append(f"G1 Y{oy_max - rx:.3f} F{t3_feed_cut}")
+                zigzag(cl, 'Y', sy_s, p1_ramp, z_top, _z_cut, ramp_len, ramp_dz, ramp_feed)
+                cut_seg('Y', sy_s, oy_max - rx)
                 cl.append(f"G2 X{ox_min + rx:.3f} Y{oy_max:.3f} R{rx}")
-                cl.append(f"G1 X{ox_max - rx:.3f}")
+                cut_seg('X', ox_min + rx, ox_max - rx)
                 cl.append(f"G2 X{ox_max:.3f} Y{oy_max - rx:.3f} R{rx}")
-                cl.append(f"G1 Y{oy_min + rx:.3f}")
+                cut_seg('Y', oy_max - rx, oy_min + rx)
                 cl.append(f"G2 X{ox_max - rx:.3f} Y{oy_min:.3f} R{rx}")
-                cl.append(f"G1 X{ox_min + rx:.3f}")
+                cut_seg('X', ox_max - rx, ox_min + rx)
                 cl.append(f"G2 X{ox_min:.3f} Y{oy_min + rx:.3f} R{rx}")
-                cl.append(f"G1 Y{sy_s:.3f}")
+                cut_seg('Y', oy_min + rx, sy_s)
             elif es == 'R':
                 sy_s = oy_max - rx
                 p1_ramp = max(sy_s - 999.0, oy_min + rx)
                 cl.append(f"G0 X{ox_max:.3f} Y{sy_s:.3f} Z{z_top + 5.0}")
                 cl.append(f"G1 Z{z_top:.3f} F2000")
-                zigzag(cl, 'Y', sy_s, p1_ramp, z_top, -0.2, ramp_len, ramp_dz, ramp_feed)
-                cl.append(f"G1 Y{oy_min + rx:.3f} F{t3_feed_cut}")
+                zigzag(cl, 'Y', sy_s, p1_ramp, z_top, _z_cut, ramp_len, ramp_dz, ramp_feed)
+                cut_seg('Y', sy_s, oy_min + rx)
                 cl.append(f"G2 X{ox_max - rx:.3f} Y{oy_min:.3f} R{rx}")
-                cl.append(f"G1 X{ox_min + rx:.3f}")
+                cut_seg('X', ox_max - rx, ox_min + rx)
                 cl.append(f"G2 X{ox_min:.3f} Y{oy_min + rx:.3f} R{rx}")
-                cl.append(f"G1 Y{oy_max - rx:.3f}")
+                cut_seg('Y', oy_min + rx, oy_max - rx)
                 cl.append(f"G2 X{ox_min + rx:.3f} Y{oy_max:.3f} R{rx}")
-                cl.append(f"G1 X{ox_max - rx:.3f}")
+                cut_seg('X', ox_min + rx, ox_max - rx)
                 cl.append(f"G2 X{ox_max:.3f} Y{oy_max - rx:.3f} R{rx}")
-                cl.append(f"G1 Y{sy_s:.3f}")
+                cut_seg('Y', oy_max - rx, sy_s)
             elif es == 'T':
                 sx_s = ox_min + rx
                 p1_ramp = min(sx_s + 999.0, ox_max - rx)
                 cl.append(f"G0 X{sx_s:.3f} Y{oy_max:.3f} Z{z_top + 5.0}")
                 cl.append(f"G1 Z{z_top:.3f} F2000")
-                zigzag(cl, 'X', sx_s, p1_ramp, z_top, -0.2, ramp_len, ramp_dz, ramp_feed)
-                cl.append(f"G1 X{ox_max - rx:.3f} F{t3_feed_cut}")
+                zigzag(cl, 'X', sx_s, p1_ramp, z_top, _z_cut, ramp_len, ramp_dz, ramp_feed)
+                cut_seg('X', sx_s, ox_max - rx)
                 cl.append(f"G2 X{ox_max:.3f} Y{oy_max - rx:.3f} R{rx}")
-                cl.append(f"G1 Y{oy_min + rx:.3f}")
+                cut_seg('Y', oy_max - rx, oy_min + rx)
                 cl.append(f"G2 X{ox_max - rx:.3f} Y{oy_min:.3f} R{rx}")
-                cl.append(f"G1 X{ox_min + rx:.3f}")
+                cut_seg('X', ox_max - rx, ox_min + rx)
                 cl.append(f"G2 X{ox_min:.3f} Y{oy_min + rx:.3f} R{rx}")
-                cl.append(f"G1 Y{oy_max - rx:.3f}")
+                cut_seg('Y', oy_min + rx, oy_max - rx)
                 cl.append(f"G2 X{ox_min + rx:.3f} Y{oy_max:.3f} R{rx}")
-                cl.append(f"G1 X{sx_s:.3f}")
+                cut_seg('X', ox_min + rx, sx_s)
             else:  # 'B'
                 sx_s = ox_max - rx
                 p1_ramp = max(sx_s - 999.0, ox_min + rx)
                 cl.append(f"G0 X{sx_s:.3f} Y{oy_min:.3f} Z{z_top + 5.0}")
                 cl.append(f"G1 Z{z_top:.3f} F2000")
-                zigzag(cl, 'X', sx_s, p1_ramp, z_top, -0.2, ramp_len, ramp_dz, ramp_feed)
-                cl.append(f"G1 X{ox_min + rx:.3f} F{t3_feed_cut}")
+                zigzag(cl, 'X', sx_s, p1_ramp, z_top, _z_cut, ramp_len, ramp_dz, ramp_feed)
+                cut_seg('X', sx_s, ox_min + rx)
                 cl.append(f"G2 X{ox_min:.3f} Y{oy_min + rx:.3f} R{rx}")
-                cl.append(f"G1 Y{oy_max - rx:.3f}")
+                cut_seg('Y', oy_min + rx, oy_max - rx)
                 cl.append(f"G2 X{ox_min + rx:.3f} Y{oy_max:.3f} R{rx}")
-                cl.append(f"G1 X{ox_max - rx:.3f}")
+                cut_seg('X', ox_min + rx, ox_max - rx)
                 cl.append(f"G2 X{ox_max:.3f} Y{oy_max - rx:.3f} R{rx}")
-                cl.append(f"G1 Y{oy_min + rx:.3f}")
+                cut_seg('Y', oy_max - rx, oy_min + rx)
                 cl.append(f"G2 X{ox_max - rx:.3f} Y{oy_min:.3f} R{rx}")
-                cl.append(f"G1 X{sx_s:.3f}")
+                cut_seg('X', ox_max - rx, sx_s)
             cl.append(f"G0 Z{z_safe}")
             curr_x, curr_y = d['x'] + d['w'] / 2, d['y'] + d['h'] / 2
             cl.append("")

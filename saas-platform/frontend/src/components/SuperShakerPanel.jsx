@@ -1256,7 +1256,53 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
                 onChange={v => handleSettingsChange("allow_rotation", v)} />
               <ParamField label={`Nesting Loops`} value={settings.nesting_iterations || 100}
                 onChange={v => handleSettingsChange("nesting_iterations", parseInt(v) || 100)} step="10" />
+
+              {/* ── Small Part Tabs (Bridges) ─────────────────── */}
+              <div className="mt-1 pt-2 space-y-1.5" style={{ borderTop: "1px dashed var(--ss-border)" }}>
+                <div className="flex items-center justify-between gap-2 mb-0.5">
+                  <span className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5"
+                    style={{ color: settings.do_tabs && settings.do_cutout ? "var(--ss-accent)" : "var(--ss-text-muted)" }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/>
+                      <line x1="9" y1="21" x2="9" y2="9"/>
+                    </svg>
+                    Tabs / Bridges
+                  </span>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full font-mono"
+                    style={{ backgroundColor: "var(--ss-input-bg)", color: "var(--ss-text-muted)", border: "1px solid var(--ss-border)" }}>
+                    ≤ {((settings.small_part_threshold || 0.05) * 1e4).toFixed(0)} cm²
+                  </span>
+                </div>
+                <CheckField
+                  label="Tabs on Small Parts"
+                  checked={settings.do_tabs ?? true}
+                  onChange={v => handleSettingsChange("do_tabs", v)}
+                  disabled={!settings.do_cutout}
+                />
+                {settings.do_tabs && settings.do_cutout && (
+                  <div className="pl-3 space-y-1.5 animate-fade-in" style={{ borderLeft: "2px solid var(--ss-border)" }}>
+                    <ParamField
+                      label={`Tab Height (${unitLabel})`}
+                      value={toDisplay(settings.tab_height ?? 0.4)}
+                      onChange={v => handleSettingsChange("tab_height", fromDisplay(parseFloat(v) || 0.4))}
+                      step="0.1"
+                    />
+                    <ParamField
+                      label={`Tab Width (${unitLabel})`}
+                      value={toDisplay(settings.tab_width ?? 4.0)}
+                      onChange={v => handleSettingsChange("tab_width", fromDisplay(parseFloat(v) || 4.0))}
+                      step="0.5"
+                    />
+                    <p className="text-[9px] leading-snug" style={{ color: "var(--ss-text-muted)" }}>
+                      Bridges keep small parts on the vacuum table during final cutout.
+                      Snap them off by hand after unclamping.
+                    </p>
+                  </div>
+                )}
+              </div>
             </ParamSection>
+
 
             <ParamSection title="PDF Labels Export">
               <div className="flex items-center gap-2 mb-2">

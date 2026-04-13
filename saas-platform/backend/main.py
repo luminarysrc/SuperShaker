@@ -61,6 +61,7 @@ _DEFAULT_SETTINGS = {
     "do_pocket": True, "do_corners_rest": True,
     "do_french_miter": True, "do_cutout": True,
     "do_rough_pass": False, "common_line": False, "allow_rotation": True,
+    "do_tabs": True, "tab_height": 0.4, "tab_width": 4.0,
     "small_part_threshold": 0.05, "nesting_iterations": 100,
     "t2_tool_t": "T2", "t2_spindle": 18000, "t2_feed": 6000,
     "t3_tool_t": "T3", "t3_spindle": 18000, "t3_feed": 8000,
@@ -152,6 +153,9 @@ class SettingsModel(BaseModel):
     do_rough_pass: Optional[bool] = None
     common_line: Optional[bool] = None
     allow_rotation: Optional[bool] = None
+    do_tabs: Optional[bool] = None
+    tab_height: Optional[float] = None
+    tab_width: Optional[float] = None
     small_part_threshold: Optional[float] = None
     nesting_iterations: Optional[int] = None
     t2_tool_t: Optional[str] = None
@@ -624,6 +628,10 @@ async def generate_gcode(request: Request, req: GenerateRequest):
             do_cutout=s["do_cutout"],
             do_rough_pass=s["do_rough_pass"],
             common_line=s.get("common_line", False),
+            do_tabs=s.get("do_tabs", True),
+            tab_height=s.get("tab_height", 0.4),
+            tab_width=s.get("tab_width", 4.0),
+            tab_min_area=s.get("small_part_threshold", 0.05) * 1e6,
             kerf=s["kerf"], corner_r=s["corner_r"],
             feed_xy=s["feed_xy"],
             t2_tool_t=s["t2_tool_t"], t2_spindle=s["t2_spindle"],
