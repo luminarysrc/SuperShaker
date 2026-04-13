@@ -277,7 +277,11 @@ export async function generateFullGcode(sheetIndex = -1) {
 export function parseGcode(gcodeText) {
   const lines = gcodeText.split("\n");
   let x = 0, y = 0, z = 0;
-  let mode = 0; // 0=rapid, 1=cut, 2=CW, 3=CCW
+  let mode = 0; // 0=rapid, 1=cut, 2=CW arc, 3=CCW arc
+  let currentType = "default";
+  let currentPass = "unknown"; // pocket | contour | step | unknown
+
+  // ── backward-compat collections ───────────────────────
   const rapid = [];
   const cutByGroup = {
     "Shaker": [],
@@ -285,28 +289,66 @@ export function parseGcode(gcodeText) {
     "Slab": [],
     "default": [],
   };
-  let currentType = "default";
+
+  // ── new enriched collections ───────────────────────────
+  const cutByPass = {
+    pocket:  [],   // pocketing spiral segments
+    contour: [],   // contour/profile passes
+    step:    [],   // step contour passes
+    unknown: [],   // unrecognised cut moves
+  };
+
+  // Z-depth tracking
+  let zMin = Infinity;
+  let zMax = -Infinity;
+  let pathLengthMm = 0;
+
+  // ── helper: push a segment into the right buckets ─────
+  const pushCut = (x0, y0, z0, x1, y1, z1) => {
+    const seg = [x0, y0, z0, x1, y1, z1];
+    cutByGroup[currentType].push(seg);
+    cutByPass[currentPass in cutByPass ? currentPass : "unknown"].push(seg);
+    zMin = Math.min(zMin, z0, z1);
+    zMax = Math.max(zMax, z0, z1);
+    const dx = x1 - x0, dy = y1 - y0, dz = z1 - z0;
+    pathLengthMm += Math.sqrt(dx * dx + dy * dy + dz * dz);
+  };
 
   for (const raw of lines) {
+    const upper = raw.toUpperCase();
+
+    // ── detect door/part type ────────────────────────────
     if (raw.includes("(TYPE: ")) {
       const match = raw.match(/\(TYPE:\s*([^ |]+(?:\s+[^ |]+)*)/);
       if (match) {
         const t = match[1].trim();
-        if (cutByGroup[t] !== undefined) currentType = t;
-        else currentType = "default";
+        currentType = cutByGroup[t] !== undefined ? t : "default";
       }
+    }
+
+    // ── detect pass type from comments ──────────────────
+    // Matches: (POCKET ...), (CONTOUR ...), (STEP ...), (PROFILE ...)
+    if (raw.includes("(")) {
+      if (/\(\s*POCKET/i.test(raw))                    currentPass = "pocket";
+      else if (/\(\s*(STEP\s+)?CONTOUR/i.test(raw))   currentPass = "contour";
+      else if (/\(\s*STEP/i.test(raw))                 currentPass = "step";
+      else if (/\(\s*PROFILE/i.test(raw))              currentPass = "contour";
     }
 
     const line = raw.split(";")[0].split("(")[0].trim();
     if (!line) continue;
 
+    // ── G-code mode ──────────────────────────────────────
     const gMatch = line.match(/G(\d+)/);
     if (gMatch) {
       const g = parseInt(gMatch[1], 10);
       if (g === 0) mode = 0;
-      else if (g === 1 || g === 2 || g === 3) mode = g;
+      else if (g === 1) mode = 1;
+      else if (g === 2) mode = 2;
+      else if (g === 3) mode = 3;
     }
 
+    // ── coordinate extraction ────────────────────────────
     const xMatch = line.match(/X([+-]?\d*\.?\d+)/);
     const yMatch = line.match(/Y([+-]?\d*\.?\d+)/);
     const zMatch = line.match(/Z([+-]?\d*\.?\d+)/);
@@ -320,52 +362,68 @@ export function parseGcode(gcodeText) {
     const jVal = jMatch ? parseFloat(jMatch[1]) : 0;
 
     if (nx !== x || ny !== y || nz !== z) {
-      if (mode === 0 || mode === 1) {
-        const segment = [x, y, z, nx, ny, nz];
-        if (mode === 0) rapid.push(segment);
-        else cutByGroup[currentType].push(segment);
+      if (mode === 0) {
+        // Rapid move
+        rapid.push([x, y, z, nx, ny, nz]);
+        zMin = Math.min(zMin, z, nz);
+        zMax = Math.max(zMax, z, nz);
+      } else if (mode === 1) {
+        // Linear cut
+        pushCut(x, y, z, nx, ny, nz);
       } else {
-        // G2 / G3 Circular Arc
-        const cx = x + iVal;
-        const cy = y + jVal;
+        // G2 / G3 Circular Arc → tessellate into line segments
+        const arcCx = x + iVal;
+        const arcCy = y + jVal;
         const r = Math.sqrt(iVal * iVal + jVal * jVal);
-        
+
         if (r > 0.001) {
-          let angle1 = Math.atan2(y - cy, x - cx);
-          let angle2 = Math.atan2(ny - cy, nx - cx);
+          let angle1 = Math.atan2(y - arcCy, x - arcCx);
+          let angle2 = Math.atan2(ny - arcCy, nx - arcCx);
           let deltaAngle = angle2 - angle1;
-          
+
           if (mode === 2 && deltaAngle > 0) deltaAngle -= 2 * Math.PI;
           else if (mode === 3 && deltaAngle < 0) deltaAngle += 2 * Math.PI;
-          
-          if (Math.abs(deltaAngle) < 1e-5) {
-             deltaAngle = mode === 2 ? -2 * Math.PI : 2 * Math.PI;
-          }
+          if (Math.abs(deltaAngle) < 1e-5)
+            deltaAngle = (mode === 2) ? -2 * Math.PI : 2 * Math.PI;
 
-          // Segments per full circle (e.g. 180 segments = 2 degrees per segment)
-          const segments = Math.max(4, Math.abs(Math.ceil((deltaAngle / (2 * Math.PI)) * 180)));
-          const angleStep = deltaAngle / segments;
-          
-          let curX = x, curY = y, curZ = z;
-          for (let i = 1; i <= segments; i++) {
-            const curAngle = angle1 + i * angleStep;
-            const ptX = cx + r * Math.cos(curAngle);
-            const ptY = cy + r * Math.sin(curAngle);
-            const t = i / segments;
-            const ptZ = z + (nz - z) * t;
-            
-            cutByGroup[currentType].push([curX, curY, curZ, ptX, ptY, ptZ]);
-            curX = ptX; curY = ptY; curZ = ptZ;
+          const segs = Math.max(4, Math.abs(Math.ceil((deltaAngle / (2 * Math.PI)) * 180)));
+          const step = deltaAngle / segs;
+
+          let cx2 = x, cy2 = y, cz2 = z;
+          for (let i = 1; i <= segs; i++) {
+            const ang = angle1 + i * step;
+            const px = arcCx + r * Math.cos(ang);
+            const py = arcCy + r * Math.sin(ang);
+            const pz = z + (nz - z) * (i / segs);
+            pushCut(cx2, cy2, cz2, px, py, pz);
+            cx2 = px; cy2 = py; cz2 = pz;
           }
         } else {
-          // Fallback to linear
-          cutByGroup[currentType].push([x, y, z, nx, ny, nz]);
+          pushCut(x, y, z, nx, ny, nz);
         }
       }
       x = nx; y = ny; z = nz;
     }
   }
-  return { rapid, cutByGroup };
+
+  // Flatten all cuts for quick total count (backward compat)
+  const cut = Object.values(cutByGroup).flat();
+
+  const zRange = {
+    min: isFinite(zMin) ? zMin : 0,
+    max: isFinite(zMax) ? zMax : 0,
+  };
+
+  return {
+    // ── backward compat ──────────────────────────────────
+    rapid,
+    cut,
+    cutByGroup,
+    // ── new enriched data ────────────────────────────────
+    cutByPass,
+    zRange,
+    pathLengthMm: Math.round(pathLengthMm),
+  };
 }
 
 // ═══════════════════════════════════════════════════════════

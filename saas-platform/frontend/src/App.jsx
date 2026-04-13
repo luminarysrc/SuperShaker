@@ -52,6 +52,7 @@ function AppContent() {
     setOrderId("");
   }, []);
 
+
   // Fetch profiles on login
   useEffect(() => {
     if (!user) return;
@@ -143,6 +144,7 @@ function AppContent() {
             stats={gcodeStats}
             allSheets={allSheets}
             orderId={orderId}
+            nestingResult={nestingResult}
           />
         </div>
       </div>
