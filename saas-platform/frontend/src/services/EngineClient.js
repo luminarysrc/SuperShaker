@@ -305,7 +305,7 @@ export function parseGcode(gcodeText) {
 
   // ── helper: push a segment into the right buckets ─────
   const pushCut = (x0, y0, z0, x1, y1, z1) => {
-    const seg = [x0, y0, z0, x1, y1, z1];
+    const seg = [x0, y0, z0, x1, y1, z1, currentType];
     cutByGroup[currentType].push(seg);
     cutByPass[currentPass in cutByPass ? currentPass : "unknown"].push(seg);
     zMin = Math.min(zMin, z0, z1);

@@ -347,6 +347,7 @@ export default function GcodeViewerPanel({
                 <div className="flex gap-2">
                   {[
                     { id: "type",  label: "By Type" },
+                    { id: "pass",  label: "By Pass" },
                     { id: "depth", label: "By Z-Depth" },
                   ].map(m => (
                     <button

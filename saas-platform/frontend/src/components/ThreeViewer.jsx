@@ -100,10 +100,16 @@ function buildSegmentGeometry(segments, colorFn) {
   const colors    = new Float32Array(segments.length * 6); // 2 verts × RGB
 
   segments.forEach((seg, i) => {
-    positions.set(seg, i * 6);
-    const [x0, y0, z0, x1, y1, z1] = seg;
-    const c0 = colorFn(x0, y0, z0);
-    const c1 = colorFn(x1, y1, z1);
+    positions[i * 6 + 0] = seg[0];
+    positions[i * 6 + 1] = seg[1];
+    positions[i * 6 + 2] = seg[2];
+    positions[i * 6 + 3] = seg[3];
+    positions[i * 6 + 4] = seg[4];
+    positions[i * 6 + 5] = seg[5];
+
+    const [x0, y0, z0, x1, y1, z1, t] = seg;
+    const c0 = colorFn(x0, y0, z0, t);
+    const c1 = colorFn(x1, y1, z1, t);
     colors[i * 6 + 0] = c0.r; colors[i * 6 + 1] = c0.g; colors[i * 6 + 2] = c0.b;
     colors[i * 6 + 3] = c1.r; colors[i * 6 + 4] = c1.g; colors[i * 6 + 5] = c1.b;
   });
@@ -121,10 +127,13 @@ function GcodeLines({ gcodeData, visibleLayers, colorMode }) {
     const zSpan = (zRange?.max ?? 0) - (zRange?.min ?? 0);
 
     // colour function depending on mode
-    const colorFnForPass = (passKey) => (x, y, z) => {
+    const colorFnForPass = (passKey) => (x, y, z, type = "default") => {
       if (colorMode === "depth") {
         const t = zSpan > 0 ? Math.abs((z - (zRange?.max ?? 0)) / zSpan) : 0;
         return depthColor(Math.min(1, Math.max(0, t)));
+      }
+      if (colorMode === "type") {
+        return (TYPE_COLORS[type] || TYPE_COLORS.default).clone();
       }
       return (PASS_COLORS[passKey] || PASS_COLORS.unknown).clone();
     };
