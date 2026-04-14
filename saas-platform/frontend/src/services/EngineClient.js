@@ -47,9 +47,12 @@ export async function clearDoors() {
   return r.json();
 }
 
-export async function uploadBatchExcel(file) {
+export async function uploadBatchExcel(file, config = { unit: "mm", source: "generic" }) {
   const formData = new FormData();
   formData.append("file", file);
+  formData.append("unit", config.unit || "mm");
+  formData.append("source", config.source || "generic");
+  
   const r = await fetch(`${API_BASE}/jobs/import-batch`, {
     method: "POST",
     body: formData,

@@ -7,7 +7,7 @@ Run with: uvicorn main:app --reload --port 8000
 import copy
 import io
 import pandas as pd
-from fastapi import FastAPI, HTTPException, UploadFile, File, Request
+from fastapi import FastAPI, HTTPException, UploadFile, File, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -288,7 +288,12 @@ async def delete_offcut(offcut_id: int):
 
 @app.post("/jobs/import-batch")
 @limiter.limit("10/minute")
-async def import_batch(request: Request, file: UploadFile = File(...)):
+async def import_batch(
+    request: Request,
+    file: UploadFile = File(...),
+    unit: str = Form("mm"),
+    source: str = Form("generic")
+):
     if not file.filename.endswith((".xlsx", ".csv")):
         raise HTTPException(400, "Invalid file format. Only .xlsx and .csv allowed.")
     
@@ -310,7 +315,7 @@ async def import_batch(request: Request, file: UploadFile = File(...)):
         return None
         
     w_col = get_col(["w", "width", "x"])
-    h_col = get_col(["h", "height", "y"])
+    h_col = get_col(["h", "height", "y", "length", "len", "l"])
     qty_col = get_col(["qty", "quantity", "count", "num", "amount"])
     type_col = get_col(["type", "style", "facade"])
     grain_col = get_col(["grain", "direction"])
@@ -325,8 +330,13 @@ async def import_batch(request: Request, file: UploadFile = File(...)):
             h = float(row[h_col])
             if pd.isna(w) or pd.isna(h):
                 continue
-                
-            qty = 1
+
+            if unit == "in":
+                w *= 25.4
+                h *= 25.4
+            elif unit == "cm":
+                w *= 10.0
+                h *= 10.0
             if qty_col and not pd.isna(row[qty_col]):
                 qty_val = row[qty_col]
                 if not pd.isna(qty_val):

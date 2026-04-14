@@ -59,10 +59,15 @@ export default function GcodeViewerPanel({
 
   // ── Toolpath layer controls ──────────────────────────────
   const [visibleLayers, setVisibleLayers]   = useState(DEFAULT_VISIBLE);
-  const [colorMode, setColorMode]           = useState("type");   // "type" | "depth"
+  const [colorMode, setColorMode]           = useState("type");   // "type" | "depth" | "pass"
   const [toolProgress, setToolProgress]     = useState(0);
   const [showLayersPanel, setShowLayersPanel] = useState(false);
   const layersPanelRef = useRef(null);
+
+  // ── Import Modal State ───────────────────────────────────
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importConfig, setImportConfig] = useState({ unit: "cm", source: "generic" });
+  const [pendingFile, setPendingFile] = useState(null);
 
   // Close layers panel on outside click
   useEffect(() => {
@@ -97,14 +102,8 @@ export default function GcodeViewerPanel({
     if (!file) return;
     const name = file.name.toLowerCase();
     if (name.endsWith(".xlsx") || name.endsWith(".csv")) {
-      setIsUploadingExcel(true);
-      try {
-        await uploadBatchExcel(file);
-        if (onDoorsImported) onDoorsImported();
-      } catch (err) {
-        console.error("Failed to upload excel batch:", err);
-        alert("Failed to import batch parts: " + err.message);
-      } finally { setIsUploadingExcel(false); }
+      setPendingFile(file);
+      setShowImportModal(true);
     } else {
       try {
         const text = await readGcodeFile(file);
@@ -113,21 +112,22 @@ export default function GcodeViewerPanel({
         setLocalGcodeData(parsed);
       } catch (err) { console.error("Failed to read dropped file as G-code:", err); }
     }
-  }, [onDoorsImported]);
+  }, []);
 
   // ── Excel upload ─────────────────────────────────────────
-  const handleExcelUpload = useCallback(async (e) => {
-    const file = e.target.files?.[0];
+  const handleExcelUpload = useCallback(async (file) => {
     if (!file) return;
     setIsUploadingExcel(true);
     try {
-      await uploadBatchExcel(file);
+      await uploadBatchExcel(file, importConfig);
       if (onDoorsImported) onDoorsImported();
+      setShowImportModal(false);
+      setPendingFile(null);
     } catch (err) {
       console.error("Failed to upload excel batch:", err);
       alert("Failed to import batch parts: " + err.message);
-    } finally { setIsUploadingExcel(false); e.target.value = ""; }
-  }, [onDoorsImported]);
+    } finally { setIsUploadingExcel(false); }
+  }, [onDoorsImported, importConfig]);
 
   // ── G-code file upload ───────────────────────────────────
   const handleFileUpload = useCallback(async (e) => {
@@ -457,19 +457,19 @@ export default function GcodeViewerPanel({
         </div>
 
         {/* Excel Batch Upload */}
-        <label
-          className="w-10 h-10 rounded-lg cursor-pointer transition-all flex items-center justify-center active:scale-95"
+        <button
+          onClick={() => { setPendingFile(null); setShowImportModal(true); }}
+          className="w-10 h-10 rounded-lg cursor-pointer transition-all flex items-center justify-center active:scale-95 disabled:opacity-30"
           style={toolbarBtnStyle}
-          title="Excel Batch Import (.xlsx, .csv)"
+          title="Import CSV/Excel Door List"
+          disabled={isUploadingExcel}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
             <path d="M7 7h10"/><path d="M7 12h10"/><path d="M7 17h10"/>
           </svg>
-          <input type="file" accept=".xlsx,.csv" className="hidden"
-                 disabled={isUploadingExcel} onChange={handleExcelUpload} />
-        </label>
+        </button>
 
         {/* G-code Upload */}
         <label
@@ -543,6 +543,90 @@ export default function GcodeViewerPanel({
           </div>
         )}
       </div>
+
+      {/* ── Import Modal Overlay ──────────────────────────────── */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.5)", backdropFilter: "blur(2px)" }}>
+          <div className="rounded-xl shadow-2xl w-96 p-5 animate-fade-in" style={{ backgroundColor: "var(--ss-surface)", border: "1px solid var(--ss-border)" }}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-base" style={{ color: "var(--ss-text)" }}>Import Door List</h3>
+              <button onClick={() => { setShowImportModal(false); setPendingFile(null); }} className="p-1 rounded opacity-50 hover:opacity-100 transition-opacity">
+                &times;
+              </button>
+            </div>
+            
+            <div className="space-y-4 text-sm" style={{ color: "var(--ss-text)" }}>
+              {/* Source Dropdown */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold" style={{ color: "var(--ss-text-muted)" }}>Source Integration</label>
+                <select 
+                  className="ss-input text-sm w-full"
+                  value={importConfig.source}
+                  onChange={e => setImportConfig({ ...importConfig, source: e.target.value })}
+                >
+                  <option value="generic">Generic CSV / Excel</option>
+                  <option value="mozaik">Mozaik Door Report</option>
+                  <option value="cabinet_vision">Cabinet Vision Extract</option>
+                </select>
+              </div>
+
+              {/* Units Dropdown */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold" style={{ color: "var(--ss-text-muted)" }}>Dimensional Units</label>
+                <select 
+                  className="ss-input text-sm w-full"
+                  value={importConfig.unit}
+                  onChange={e => setImportConfig({ ...importConfig, unit: e.target.value })}
+                >
+                  <option value="mm">Millimeters (mm)</option>
+                  <option value="cm">Centimeters (cm)</option>
+                  <option value="in">Inches (in)</option>
+                </select>
+                <p className="text-[10px]" style={{ color: "var(--ss-text-muted)" }}>
+                  Values in the sheet will be converted to mm internally.
+                </p>
+              </div>
+
+              {/* File Info / Select */}
+              <div className="pt-2">
+                {pendingFile ? (
+                  <div className="flex items-center gap-2 p-3 rounded bg-green-500/10 border border-green-500/20 text-green-500 text-xs">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    <span className="truncate w-full font-mono font-semibold">{pendingFile.name}</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <label className="ss-btn-ghost flex-1 py-2 text-center cursor-pointer text-xs">
+                      Choose .csv or .xlsx
+                      <input type="file" accept=".xlsx,.csv" className="hidden" onChange={(e) => setPendingFile(e.target.files?.[0])} />
+                    </label>
+                  </div>
+                )}
+              </div>
+              
+              {/* Actions */}
+              <div className="flex gap-2 pt-3">
+                <button 
+                  onClick={() => { setShowImportModal(false); setPendingFile(null); }}
+                  className="ss-btn-ghost flex-1 py-2"
+                >Cancel</button>
+                <button 
+                  onClick={() => handleExcelUpload(pendingFile)}
+                  disabled={!pendingFile || isUploadingExcel}
+                  className="ss-btn-primary flex-1 py-2 disabled:opacity-50 flex justify-center items-center"
+                >
+                  {isUploadingExcel ? (
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  ) : "Import Parts"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
