@@ -330,12 +330,11 @@ export function parseGcode(gcodeText) {
     }
 
     // ── detect pass type from comments ──────────────────
-    // Matches: (POCKET ...), (CONTOUR ...), (STEP ...), (PROFILE ...)
     if (raw.includes("(")) {
-      if (/\(\s*POCKET/i.test(raw))                    currentPass = "pocket";
-      else if (/\(\s*(STEP\s+)?CONTOUR/i.test(raw))   currentPass = "contour";
-      else if (/\(\s*STEP/i.test(raw))                 currentPass = "step";
-      else if (/\(\s*PROFILE/i.test(raw))              currentPass = "contour";
+      if (/2ND POCKET/i.test(raw)) currentPass = "step";
+      else if (/(POCKET|POCKETS)/i.test(raw)) currentPass = "pocket";
+      else if (/(CUTOUT|CONTOUR|PROFILE)/i.test(raw)) currentPass = "contour";
+      else if (/(STEP|MITER|CHAMFER|CORNER|PERIMETER)/i.test(raw)) currentPass = "step";
     }
 
     const line = raw.split(";")[0].split("(")[0].trim();

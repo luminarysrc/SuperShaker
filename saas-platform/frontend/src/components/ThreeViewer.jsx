@@ -11,8 +11,8 @@
  *   toolProgress   — 0.0–1.0 scrub position along cut path
  *   nestingResult  — optional nesting data to draw door footprint boxes
  */
-import React, { useMemo, useRef } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import React, { useMemo, useRef, useCallback, useEffect } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Grid, Line, Text } from "@react-three/drei";
 import * as THREE from "three";
 
@@ -353,6 +353,70 @@ function SheetBoxes({ nestingResult, settings }) {
 }
 
 // ═══════════════════════════════════════════════════════════
+//  Camera auto-fit + orbit controls
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * SceneControls — OrbitControls + camera auto-fit.
+ * Runs INSIDE the Canvas so it can access useThree().
+ */
+function SceneControls({ gcodeData, fitTrigger, bedWidth, bedHeight }) {
+  const { camera } = useThree();
+  const controlsRef = useRef();
+
+  const fit = useCallback(() => {
+    // Build flat segment list from rapid + all cut passes
+    const allSegs = [];
+    if (gcodeData?.rapid) allSegs.push(...gcodeData.rapid);
+    if (gcodeData?.cutByPass) {
+      for (const segs of Object.values(gcodeData.cutByPass)) allSegs.push(...segs);
+    }
+
+    let cx, cy, dist;
+    if (allSegs.length > 0) {
+      let minX = Infinity, minY = Infinity;
+      let maxX = -Infinity, maxY = -Infinity;
+      for (const s of allSegs) {
+        minX = Math.min(minX, s[0], s[3]);
+        minY = Math.min(minY, s[1], s[4]);
+        maxX = Math.max(maxX, s[0], s[3]);
+        maxY = Math.max(maxY, s[1], s[4]);
+      }
+      cx   = (minX + maxX) / 2;
+      cy   = (minY + maxY) / 2;
+      dist = Math.max(maxX - minX, maxY - minY) * 1.2;
+    } else {
+      cx   = bedWidth  / 2;
+      cy   = bedHeight / 2;
+      dist = Math.max(bedWidth, bedHeight) * 1.2;
+    }
+
+    camera.position.set(cx, cy - dist * 0.25, dist * 0.9);
+    if (controlsRef.current) {
+      controlsRef.current.target.set(cx, cy, 0);
+      controlsRef.current.update();
+    }
+  }, [gcodeData, bedWidth, bedHeight, camera]);
+
+  // Auto-fit whenever toolpath changes
+  useEffect(() => { fit(); }, [gcodeData]);
+  // Manual fit when toolbar button pressed
+  useEffect(() => { if (fitTrigger > 0) fit(); }, [fitTrigger, fit]);
+
+  return (
+    <OrbitControls
+      ref={controlsRef}
+      up={[0, 0, 1]}
+      enableDamping
+      dampingFactor={0.1}
+      minDistance={10}
+      maxDistance={50000}
+      makeDefault
+    />
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
 //  Main exported component
 // ═══════════════════════════════════════════════════════════
 
@@ -366,22 +430,21 @@ const DEFAULT_VISIBLE = {
 
 export default function ThreeViewer({
   gcodeData,
-  bedWidth    = 2500,
-  bedHeight   = 1250,
+  bedWidth      = 2500,
+  bedHeight     = 1250,
   visibleLayers = DEFAULT_VISIBLE,
-  colorMode   = "type",
-  toolProgress = 0,
+  colorMode     = "type",
+  toolProgress  = 0,
   nestingResult = null,
-  settings    = null,
+  settings      = null,
+  fitTrigger    = 0,
 }) {
   const w = bedWidth  || 2500;
   const h = bedHeight || 1250;
-  const cameraPos    = [w / 2, -h * 0.3, h * 1.5];
-  const cameraTarget = [w / 2, h / 2, 0];
 
   return (
     <Canvas
-      camera={{ position: cameraPos, fov: 50, near: 0.1, far: 500000, up: [0, 0, 1] }}
+      camera={{ position: [w / 2, -h * 0.3, h * 1.5], fov: 50, near: 0.1, far: 500000, up: [0, 0, 1] }}
       gl={{ antialias: true, alpha: false }}
       style={{ background: "#0d0d12" }}
       dpr={[1, 2]}
@@ -390,14 +453,12 @@ export default function ThreeViewer({
       <directionalLight position={[100, 100, 200]} intensity={0.6} />
       <pointLight position={[w / 2, h / 2, 100]} intensity={0.3} />
 
-      <OrbitControls
-        target={cameraTarget}
-        up={[0, 0, 1]}
-        enableDamping
-        dampingFactor={0.1}
-        minDistance={10}
-        maxDistance={50000}
-        makeDefault
+      {/* SceneControls handles OrbitControls + camera auto-fit */}
+      <SceneControls
+        gcodeData={gcodeData}
+        fitTrigger={fitTrigger}
+        bedWidth={w}
+        bedHeight={h}
       />
 
       <MachineBed key={`${w}-${h}`} width={w} height={h} />

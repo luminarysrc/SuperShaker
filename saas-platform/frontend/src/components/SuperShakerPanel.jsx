@@ -33,6 +33,7 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
   const [newDoor, setNewDoor] = useState({ w: 400, h: 600, qty: 4, type: "Shaker", grain: "None" });
   const [newOffcut, setNewOffcut] = useState({ w: 600, h: 400, qty: 1 });
   const [showCostSettings, setShowCostSettings] = useState(false);
+  const [showOffcuts, setShowOffcuts] = useState(false);
   const [editingCell, setEditingCell] = useState(null);
   const [editingValue, setEditingValue] = useState("");
   const [useInch, setUseInch] = useState(false);
@@ -1010,7 +1011,10 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
 
             {/* Offcuts Inventory */}
             <section className="space-y-3 pt-3 mt-1" style={{ borderTop: "2px dashed var(--ss-border)" }}>
-              <div className="flex items-center justify-between gap-3 px-1">
+              <div 
+                className="flex items-center gap-3 px-1 cursor-pointer transition-opacity hover:opacity-80"
+                onClick={() => setShowOffcuts(!showOffcuts)}
+              >
                 <h3 className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-2"
                     style={{ color: "var(--ss-accent)" }}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v4"/><polyline points="15 3 21 9 21 21s-1.5-1-4-1-4 1-4 1V9"/><line x1="2" x2="22" y1="9" y2="9"/><line x1="7" x2="7" y1="3" y2="9"/></svg>
@@ -1019,69 +1023,76 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
                 <span className="text-[9px] font-mono px-2 py-0.5 rounded-full" style={{ backgroundColor: "var(--ss-accent-soft)", color: "var(--ss-accent)" }}>
                   {offcuts.length} pieces
                 </span>
+                <span className="text-[10px]" style={{ color: "var(--ss-text-muted)" }}>
+                  {showOffcuts ? '▼' : '▶'}
+                </span>
                 <hr className="flex-1 opacity-20" style={{ borderColor: "var(--ss-border)" }} />
               </div>
 
-              {/* Add offcut form */}
-              <div className="flex items-end gap-2 p-2 rounded-lg" style={{ backgroundColor: "var(--ss-card)", border: "1px solid var(--ss-border)" }}>
-                <div className="flex-1">
-                  <label className="block text-[9px] font-bold uppercase mb-1" style={{ color: "var(--ss-text-muted)" }}>Width {unitLabel}</label>
-                  <input type="number" className="ss-input text-xs py-1 text-center font-mono w-full"
-                    placeholder="W"
-                    value={toDisplay(newOffcut.w)}
-                    onChange={e => setNewOffcut({...newOffcut, w: fromDisplay(parseFloat(e.target.value) || 0)})} />
-                </div>
-                <div className="flex-1">
-                  <label className="block text-[9px] font-bold uppercase mb-1" style={{ color: "var(--ss-text-muted)" }}>Height {unitLabel}</label>
-                  <input type="number" className="ss-input text-xs py-1 text-center font-mono w-full"
-                    placeholder="H"
-                    value={toDisplay(newOffcut.h)}
-                    onChange={e => setNewOffcut({...newOffcut, h: fromDisplay(parseFloat(e.target.value) || 0)})} />
-                </div>
-                <div className="w-16">
-                  <label className="block text-[9px] font-bold uppercase mb-1 text-center" style={{ color: "var(--ss-text-muted)" }}>Qty</label>
-                  <input type="number" className="ss-input text-xs py-1 text-center font-mono w-full"
-                    value={newOffcut.qty}
-                    onChange={e => setNewOffcut({...newOffcut, qty: parseInt(e.target.value) || 1})} min="1" />
-                </div>
-                <button 
-                  onClick={handleAddOffcut}
-                  className="ss-btn-primary px-3 py-1.5 text-[10px] font-bold active:scale-95 shadow-md shadow-lime-500/10"
-                >
-                  + Add
-                </button>
-              </div>
+              {showOffcuts && (
+                <div className="space-y-3 animate-fade-in animate-duration-150">
+                  {/* Add offcut form */}
+                  <div className="flex items-end gap-2 p-2 rounded-lg" style={{ backgroundColor: "var(--ss-card)", border: "1px solid var(--ss-border)" }}>
+                    <div className="flex-1">
+                      <label className="block text-[9px] font-bold uppercase mb-1" style={{ color: "var(--ss-text-muted)" }}>Width {unitLabel}</label>
+                      <input type="number" className="ss-input text-xs py-1 text-center font-mono w-full"
+                        placeholder="W"
+                        value={toDisplay(newOffcut.w)}
+                        onChange={e => setNewOffcut({...newOffcut, w: fromDisplay(parseFloat(e.target.value) || 0)})} />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-[9px] font-bold uppercase mb-1" style={{ color: "var(--ss-text-muted)" }}>Height {unitLabel}</label>
+                      <input type="number" className="ss-input text-xs py-1 text-center font-mono w-full"
+                        placeholder="H"
+                        value={toDisplay(newOffcut.h)}
+                        onChange={e => setNewOffcut({...newOffcut, h: fromDisplay(parseFloat(e.target.value) || 0)})} />
+                    </div>
+                    <div className="w-16">
+                      <label className="block text-[9px] font-bold uppercase mb-1 text-center" style={{ color: "var(--ss-text-muted)" }}>Qty</label>
+                      <input type="number" className="ss-input text-xs py-1 text-center font-mono w-full"
+                        value={newOffcut.qty}
+                        onChange={e => setNewOffcut({...newOffcut, qty: parseInt(e.target.value) || 1})} min="1" />
+                    </div>
+                    <button 
+                      onClick={handleAddOffcut}
+                      className="ss-btn-primary px-3 py-1.5 text-[10px] font-bold active:scale-95 shadow-md shadow-lime-500/10"
+                    >
+                      + Add
+                    </button>
+                  </div>
 
-              {offcuts.length > 0 && (
-                <div className="overflow-x-auto max-h-32 overflow-y-auto rounded-lg" style={{ border: "1px solid var(--ss-border)" }}>
-                  <table className="w-full text-xs">
-                    <thead style={{ backgroundColor: "var(--ss-card)" }} className="sticky top-0">
-                      <tr style={{ color: "var(--ss-text-muted)" }}>
-                        <th className="py-1 px-2 text-left font-medium">Offcut ID</th>
-                        <th className="py-1 px-2 text-center font-medium">W</th>
-                        <th className="py-1 px-2 text-center font-medium">H</th>
-                        <th className="py-1 px-2 text-center font-medium">Qty</th>
-                        <th className="py-1 px-1 w-6"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {offcuts.map(o => (
-                        <tr key={o.id} className="transition-colors" style={{ borderBottom: "1px solid var(--ss-border)" }}>
-                          <td className="py-1 px-2 font-mono" style={{ color: "var(--ss-accent)" }}>{o.id}</td>
-                          <td className="py-1 px-2 text-center font-mono">{toDisplay(o.w)}</td>
-                          <td className="py-1 px-2 text-center font-mono">{toDisplay(o.h)}</td>
-                          <td className="py-1 px-2 text-center font-mono">{o.qty}</td>
-                          <td className="py-1 px-1 text-center">
-                            <button onClick={() => handleDeleteOffcut(o.id)}
-                              className="text-xs transition-colors hover:text-red-500"
-                              style={{ color: "var(--ss-text-muted)" }}>
-                              ✕
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  {offcuts.length > 0 && (
+                    <div className="overflow-x-auto max-h-32 overflow-y-auto rounded-lg" style={{ border: "1px solid var(--ss-border)" }}>
+                      <table className="w-full text-xs">
+                        <thead style={{ backgroundColor: "var(--ss-card)" }} className="sticky top-0">
+                          <tr style={{ color: "var(--ss-text-muted)" }}>
+                            <th className="py-1 px-2 text-left font-medium">Offcut ID</th>
+                            <th className="py-1 px-2 text-center font-medium">W</th>
+                            <th className="py-1 px-2 text-center font-medium">H</th>
+                            <th className="py-1 px-2 text-center font-medium">Qty</th>
+                            <th className="py-1 px-1 w-6"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {offcuts.map(o => (
+                            <tr key={o.id} className="transition-colors" style={{ borderBottom: "1px solid var(--ss-border)" }}>
+                              <td className="py-1 px-2 font-mono" style={{ color: "var(--ss-accent)" }}>{o.id}</td>
+                              <td className="py-1 px-2 text-center font-mono">{toDisplay(o.w)}</td>
+                              <td className="py-1 px-2 text-center font-mono">{toDisplay(o.h)}</td>
+                              <td className="py-1 px-2 text-center font-mono">{o.qty}</td>
+                              <td className="py-1 px-1 text-center">
+                                <button onClick={() => handleDeleteOffcut(o.id)}
+                                  className="text-xs transition-colors hover:text-red-500"
+                                  style={{ color: "var(--ss-text-muted)" }}>
+                                  ✕
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
             </section>
@@ -1260,8 +1271,8 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
               {/* ── Small Part Tabs (Bridges) ─────────────────── */}
               <div className="mt-1 pt-2 space-y-1.5" style={{ borderTop: "1px dashed var(--ss-border)" }}>
                 <div className="flex items-center justify-between gap-2 mb-0.5">
-                  <span className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5"
-                    style={{ color: settings.do_tabs && settings.do_cutout ? "var(--ss-accent)" : "var(--ss-text-muted)" }}>
+                  <span className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5"
+                    style={{ color: "var(--ss-text-muted)" }}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none"
                       stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/>

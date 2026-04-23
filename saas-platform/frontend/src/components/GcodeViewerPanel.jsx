@@ -61,24 +61,20 @@ export default function GcodeViewerPanel({
   const [visibleLayers, setVisibleLayers]   = useState(DEFAULT_VISIBLE);
   const [colorMode, setColorMode]           = useState("type");   // "type" | "depth" | "pass"
   const [toolProgress, setToolProgress]     = useState(0);
-  const [showLayersPanel, setShowLayersPanel] = useState(false);
-  const layersPanelRef = useRef(null);
+
+  // ── New: fit trigger, playback state ────────────────────
+  const [fitTrigger, setFitTrigger]   = useState(0);
+  const [isPlaying, setIsPlaying]     = useState(false);
+  const [playSpeed, setPlaySpeed]     = useState(1);
+  const animFrameRef                  = useRef(null);
+  const lastTimeRef                   = useRef(null);
 
   // ── Import Modal State ───────────────────────────────────
   const [showImportModal, setShowImportModal] = useState(false);
   const [importConfig, setImportConfig] = useState({ unit: "cm", source: "generic" });
   const [pendingFile, setPendingFile] = useState(null);
 
-  // Close layers panel on outside click
-  useEffect(() => {
-    if (!showLayersPanel) return;
-    const onClick = (e) => {
-      if (layersPanelRef.current && !layersPanelRef.current.contains(e.target))
-        setShowLayersPanel(false);
-    };
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, [showLayersPanel]);
+
 
   const toggleLayer = useCallback((key, value) => {
     setVisibleLayers(prev => ({ ...prev, [key]: value }));
@@ -148,7 +144,34 @@ export default function GcodeViewerPanel({
     setLocalGcodeData(null);
     setActiveSheet(0);
     setToolProgress(0);
+    setIsPlaying(false);
   }, [gcodeData, allSheets]);
+
+  // ── Tool simulation playback loop ────────────────────────
+  React.useEffect(() => {
+    if (!isPlaying || !displayData) {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      lastTimeRef.current = null;
+      return;
+    }
+    const animate = (time) => {
+      if (lastTimeRef.current !== null) {
+        const dt = Math.min((time - lastTimeRef.current) / 1000, 0.1);
+        setToolProgress(prev => {
+          const next = prev + dt * playSpeed * 0.022;
+          if (next >= 1) { setIsPlaying(false); return 1; }
+          return next;
+        });
+      }
+      lastTimeRef.current = time;
+      animFrameRef.current = requestAnimationFrame(animate);
+    };
+    animFrameRef.current = requestAnimationFrame(animate);
+    return () => {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      lastTimeRef.current = null;
+    };
+  }, [isPlaying, playSpeed, displayData]);
 
   // ── Sheet switch ─────────────────────────────────────────
   const handleSheetSwitch = useCallback((idx) => {
@@ -177,13 +200,18 @@ export default function GcodeViewerPanel({
     color: "var(--ss-text-muted)",
   };
 
-  // ── Stats computed from displayData ──────────────────────
-  const passCountLabel = displayData?.cutByPass
-    ? Object.entries(displayData.cutByPass)
-        .filter(([, segs]) => segs.length > 0)
-        .map(([k, segs]) => `${segs.length.toLocaleString()} ${k}`)
-        .join(" · ")
-    : null;
+  // ── Per-pass segment chips for toolbar ───────────────────
+  const PASS_CHIP_DEFS = [
+    { key: "pocket",  color: "#f97316", label: "pkt" },
+    { key: "contour", color: "#84cc16", label: "ctr" },
+    { key: "step",    color: "#a855f7", label: "stp" },
+    { key: "unknown", color: "#94a3b8", label: "oth" },
+  ];
+  const passChips = displayData?.cutByPass
+    ? PASS_CHIP_DEFS.map(p => ({ ...p, count: displayData.cutByPass[p.key]?.length ?? 0 }))
+        .filter(p => p.count > 0)
+    : [];
+  const rapidCount = displayData?.rapid?.length ?? 0;
 
   return (
     <div
@@ -241,21 +269,29 @@ export default function GcodeViewerPanel({
 
         <div className="flex-1" />
 
-        {/* Stats */}
+        {/* Stats — per-pass coloured chips */}
         {displayData && (
           <div
-            className="flex items-center gap-4 mr-2 px-3 py-1.5 rounded-lg"
+            className="flex items-center gap-3 mr-2 px-3 py-1.5 rounded-lg"
             style={{ backgroundColor: "var(--ss-card)", border: "1px solid var(--ss-border)" }}
           >
-            <div className="flex gap-3 text-xs font-mono whitespace-nowrap" style={{ color: "var(--ss-text-muted)" }}>
-              <span title="Cut moves">
-                <span className="text-green-500">●</span> {(displayData.cut?.length || 0).toLocaleString()} cut
-              </span>
-              <span title="Rapid moves">
-                <span className="text-yellow-500">●</span> {(displayData.rapid?.length || 0).toLocaleString()} rapid
-              </span>
+            <div className="flex gap-2 text-xs font-mono whitespace-nowrap">
+              {passChips.map(p => (
+                <span key={p.key} title={`${p.key} moves`} className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: p.color }} />
+                  <span style={{ color: p.color }}>{p.count.toLocaleString()}</span>
+                  <span style={{ color: "var(--ss-text-muted)" }}>{p.label}</span>
+                </span>
+              ))}
+              {rapidCount > 0 && (
+                <span title="rapid moves" className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: "#38bdf8" }} />
+                  <span style={{ color: "#38bdf8" }}>{rapidCount.toLocaleString()}</span>
+                  <span style={{ color: "var(--ss-text-muted)" }}>rap</span>
+                </span>
+              )}
               {displayData.pathLengthMm > 0 && (
-                <span title="Total path length" className="text-sky-400">
+                <span title="Total path length" className="flex items-center gap-1 border-l pl-2" style={{ borderColor: "var(--ss-border)", color: "#38bdf8" }}>
                   {displayData.pathLengthMm > 1000
                     ? `${(displayData.pathLengthMm / 1000).toFixed(1)} m`
                     : `${displayData.pathLengthMm} mm`}
@@ -266,7 +302,7 @@ export default function GcodeViewerPanel({
             {currentStats?.total_time_sec > 0 && (
               <>
                 <div className="w-[1px] h-4" style={{ backgroundColor: "var(--ss-border)" }} />
-                <div className="flex gap-4 text-xs font-mono whitespace-nowrap">
+                <div className="flex gap-3 text-xs font-mono whitespace-nowrap">
                   <span title="Total Machining Time" className="font-semibold flex items-center gap-1.5" style={{ color: "var(--ss-accent)" }}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                     {currentStats.total_time_formatted}
@@ -291,141 +327,40 @@ export default function GcodeViewerPanel({
           </div>
         )}
 
-        {/* ── Layers button + popover ─────────────────────── */}
-        <div className="relative" ref={layersPanelRef}>
-          <button
-            onClick={() => setShowLayersPanel(p => !p)}
-            disabled={!displayData}
-            title="Layer visibility & tool simulation"
-            className="h-10 px-3 rounded-lg transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-30 disabled:pointer-events-none text-xs font-semibold"
-            style={{
-              backgroundColor: showLayersPanel ? "var(--ss-accent-soft)" : "var(--ss-card)",
-              border: showLayersPanel ? "1px solid rgba(132,204,22,0.3)" : "1px solid var(--ss-border)",
-              color: showLayersPanel ? "var(--ss-accent)" : "var(--ss-text-muted)",
-            }}
-          >
-            {/* Layers icon */}
-            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
-            </svg>
-            Layers
-          </button>
-
-          {showLayersPanel && (
-            <div
-              className="absolute right-0 top-12 z-50 w-72 rounded-xl shadow-2xl overflow-hidden animate-fade-in"
+        {/* —— Colour Mode Selector (Bypass Button Replacement) —— */}
+        <div className="flex bg-[var(--ss-card)] rounded-lg p-1 border h-10 items-center overflow-hidden" style={{ borderColor: "var(--ss-border)" }}>
+          {[
+            { id: "type",  label: "By Type" },
+            { id: "pass",  label: "By Pass" },
+            { id: "depth", label: "By Depth" },
+          ].map(m => (
+            <button
+              key={m.id}
+              onClick={() => setColorMode(m.id)}
+              disabled={!displayData}
+              className="px-4 h-full rounded text-xs font-semibold transition-all disabled:opacity-30 disabled:pointer-events-none whitespace-nowrap"
               style={{
-                backgroundColor: "var(--ss-surface)",
-                border: "1px solid var(--ss-border)",
-                boxShadow: "0 25px 50px rgba(0,0,0,0.5)",
+                backgroundColor: colorMode === m.id ? "var(--ss-accent-soft)" : "transparent",
+                color: colorMode === m.id ? "var(--ss-accent)" : "var(--ss-text-muted)",
               }}
             >
-              {/* Header */}
-              <div className="px-3 pt-3 pb-2 border-b" style={{ borderColor: "var(--ss-border)" }}>
-                <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--ss-text-muted)" }}>
-                  Toolpath Layers
-                </p>
-              </div>
-
-              {/* Layer toggles */}
-              <div className="px-2 py-2 space-y-0.5">
-                {LAYER_DEFS.map(def => (
-                  <LayerRow
-                    key={def.key}
-                    def={def}
-                    checked={visibleLayers[def.key] !== false}
-                    onChange={toggleLayer}
-                  />
-                ))}
-              </div>
-
-              {/* Colour mode */}
-              <div className="px-3 py-2 border-t" style={{ borderColor: "var(--ss-border)" }}>
-                <p className="text-[10px] font-semibold uppercase tracking-widest mb-2" style={{ color: "var(--ss-text-muted)" }}>
-                  Colour Mode
-                </p>
-                <div className="flex gap-2">
-                  {[
-                    { id: "type",  label: "By Type" },
-                    { id: "pass",  label: "By Pass" },
-                    { id: "depth", label: "By Z-Depth" },
-                  ].map(m => (
-                    <button
-                      key={m.id}
-                      onClick={() => setColorMode(m.id)}
-                      className="flex-1 py-1.5 rounded-lg text-xs font-medium transition-all"
-                      style={{
-                        backgroundColor: colorMode === m.id ? "var(--ss-accent-soft)" : "var(--ss-card)",
-                        color: colorMode === m.id ? "var(--ss-accent)" : "var(--ss-text-muted)",
-                        border: `1px solid ${colorMode === m.id ? "rgba(132,204,22,0.25)" : "var(--ss-border)"}`,
-                      }}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
-                {colorMode === "depth" && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className="text-[10px]" style={{ color: "#22d3ee" }}>Surface</span>
-                    <div className="flex-1 h-2 rounded-full" style={{ background: "linear-gradient(to right, #22d3ee, #a855f7, #c026d3)" }} />
-                    <span className="text-[10px]" style={{ color: "#c026d3" }}>Deep</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Tool simulation scrubber */}
-              <div className="px-3 py-3 border-t" style={{ borderColor: "var(--ss-border)" }}>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--ss-text-muted)" }}>
-                    Tool Simulation
-                  </p>
-                  <span className="text-[10px] font-mono" style={{ color: "var(--ss-accent)" }}>
-                    {Math.round(toolProgress * 100)}%
-                  </span>
-                </div>
-
-                {/* Scrubber slider */}
-                <input
-                  type="range"
-                  min="0"
-                  max="1000"
-                  value={Math.round(toolProgress * 1000)}
-                  onChange={e => setToolProgress(parseInt(e.target.value) / 1000)}
-                  className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
-                  style={{
-                    accentColor: "var(--ss-accent)",
-                    background: `linear-gradient(to right, var(--ss-accent) ${toolProgress * 100}%, var(--ss-border) ${toolProgress * 100}%)`,
-                  }}
-                />
-
-                <div className="flex justify-between mt-1">
-                  <button
-                    onClick={() => setToolProgress(0)}
-                    className="text-[10px] transition-colors hover:text-sky-400"
-                    style={{ color: "var(--ss-text-muted)" }}
-                  >
-                    ↤ Start
-                  </button>
-                  <button
-                    onClick={() => setToolProgress(1)}
-                    className="text-[10px] transition-colors hover:text-sky-400"
-                    style={{ color: "var(--ss-text-muted)" }}
-                  >
-                    End ↦
-                  </button>
-                </div>
-
-                {/* Z-depth info */}
-                {displayData?.zRange && (
-                  <div className="mt-2 flex justify-between text-[10px] font-mono" style={{ color: "var(--ss-text-muted)" }}>
-                    <span>Z min: <span style={{ color: "#c026d3" }}>{displayData.zRange.min.toFixed(2)}</span> mm</span>
-                    <span>Z max: <span style={{ color: "#22d3ee" }}>{displayData.zRange.max.toFixed(2)}</span> mm</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+              {m.label}
+            </button>
+          ))}
         </div>
+
+        {/* —— Fit to view —— */}
+        <button
+          onClick={() => setFitTrigger(t => t + 1)}
+          disabled={!displayData && !nestingResult}
+          title="Fit scene to view"
+          className="h-10 px-3 rounded-lg transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-30 disabled:pointer-events-none"
+          style={toolbarBtnStyle}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+          </svg>
+        </button>
 
         {/* 3D / G-code text toggle */}
         <div
@@ -511,17 +446,138 @@ export default function GcodeViewerPanel({
             {displayText}
           </pre>
         ) : displayData ? (
-          <ThreeViewer
-            gcodeData={displayData}
-            bedWidth={currentStats?.sheet_w}
-            bedHeight={currentStats?.sheet_h}
-            visibleLayers={visibleLayers}
-            colorMode={colorMode}
-            toolProgress={toolProgress}
-            nestingResult={nestingResult}
-            settings={settings}
-          />
+          <>
+            <ThreeViewer
+              gcodeData={displayData}
+              bedWidth={currentStats?.sheet_w}
+              bedHeight={currentStats?.sheet_h}
+              visibleLayers={visibleLayers}
+              colorMode={colorMode}
+              toolProgress={toolProgress}
+              nestingResult={nestingResult}
+              settings={settings}
+              fitTrigger={fitTrigger}
+            />
+
+            {/* Tool simulation scrubber */}
+            {displayData && (
+              <div
+                className="absolute bottom-4 right-4 z-10 rounded-xl p-3 w-72 animate-fade-in shadow-2xl"
+                style={{
+                  backgroundColor: "rgba(13,13,18,0.85)",
+                  border: "1px solid var(--ss-border)",
+                  backdropFilter: "blur(6px)",
+                }}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--ss-text-muted)" }}>
+                    Tool Simulation
+                  </p>
+                  <div className="flex items-center gap-2">
+                    {currentStats?.total_time_sec > 0 && (() => {
+                      const elapsed = toolProgress * currentStats.total_time_sec;
+                      const total = currentStats.total_time_sec;
+                      const fmt = (s) => (s >= 3600 
+                        ? `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60).toString().padStart(2, '0')}m`
+                        : `${Math.floor(s / 60).toString().padStart(2, '0')}:${Math.floor(s % 60).toString().padStart(2, '0')}`);
+                      return (
+                        <span className="text-[10px] font-mono" style={{ color: "var(--ss-text-muted)" }}>
+                          {fmt(elapsed)} / {fmt(total)}
+                        </span>
+                      );
+                    })()}
+                    <span className="text-[10px] font-mono" style={{ color: "var(--ss-accent)" }}>
+                      {Math.round(toolProgress * 100)}%
+                    </span>
+                  </div>
+                </div>
+
+                {/* Scrubber */}
+                <input
+                  type="range"
+                  min="0"
+                  max="1000"
+                  value={Math.round(toolProgress * 1000)}
+                  onChange={e => { setIsPlaying(false); setToolProgress(parseInt(e.target.value) / 1000); }}
+                  className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                  style={{
+                    accentColor: "var(--ss-accent)",
+                    background: `linear-gradient(to right, var(--ss-accent) ${toolProgress * 100}%, var(--ss-border) ${toolProgress * 100}%)`,
+                  }}
+                />
+
+                {/* Play controls */}
+                <div className="flex items-center gap-2 mt-2">
+                  <button
+                    onClick={() => { if (toolProgress >= 1) setToolProgress(0); setIsPlaying(p => !p); }}
+                    className="flex items-center justify-center w-8 h-8 rounded-lg transition-all active:scale-95 border"
+                    style={{
+                      backgroundColor: isPlaying ? "var(--ss-accent-soft)" : "transparent",
+                      borderColor: isPlaying ? "rgba(132,204,22,0.3)" : "var(--ss-border)",
+                      color: isPlaying ? "var(--ss-accent)" : "var(--ss-text-muted)",
+                    }}
+                  >
+                    {isPlaying
+                      ? <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                      : <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+                    }
+                  </button>
+                  <div className="flex flex-col">
+                    <button
+                      onClick={() => { setToolProgress(0); setIsPlaying(false); }}
+                      className="text-[9px] transition-colors rounded px-1 text-left"
+                      style={{ color: "var(--ss-text-muted)" }}
+                    >
+                      ↤ Reset
+                    </button>
+                  </div>
+                  <div className="flex-1" />
+                  <div className="flex gap-1 bg-[var(--ss-card)] p-0.5 rounded-md border" style={{ borderColor: "var(--ss-border)" }}>
+                    {[0.5, 1, 2, 5].map(s => (
+                      <button
+                        key={s}
+                        onClick={() => setPlaySpeed(s)}
+                        className="px-1.5 py-0.5 rounded text-[10px] font-mono transition-all"
+                        style={{
+                          backgroundColor: playSpeed === s ? "var(--ss-accent-soft)" : "transparent",
+                          color: playSpeed === s ? "var(--ss-accent)" : "var(--ss-text-muted)",
+                        }}
+                      >{s}×</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Z-depth gradient legend */}
+            {colorMode === "depth" && displayData.zRange && (
+              <div
+                className="absolute bottom-4 left-4 z-10 rounded-xl p-3 animate-fade-in"
+                style={{
+                  backgroundColor: "rgba(13,13,18,0.85)",
+                  border: "1px solid var(--ss-border)",
+                  backdropFilter: "blur(6px)",
+                }}
+              >
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: "var(--ss-text-muted)" }}>Z Depth</p>
+                <div className="flex items-center gap-2">
+                  <div className="flex flex-col justify-between h-20 text-[9px] font-mono text-right">
+                    <span style={{ color: "#22d3ee" }}>{displayData.zRange.max.toFixed(1)}</span>
+                    <span style={{ color: "#a855f7" }}>{((displayData.zRange.max + displayData.zRange.min) / 2).toFixed(1)}</span>
+                    <span style={{ color: "#c026d3" }}>{displayData.zRange.min.toFixed(1)}</span>
+                  </div>
+                  <div className="w-3 h-20 rounded-full flex-shrink-0" style={{ background: "linear-gradient(to bottom, #22d3ee, #a855f7, #c026d3)" }} />
+                  <div className="flex flex-col justify-between h-20 text-[9px] font-mono" style={{ color: "var(--ss-text-muted)" }}>
+                    <span>surface</span>
+                    <span style={{ fontSize: "8px" }}>&#8212;</span>
+                    <span>deep</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         ) : (
+
           <div className="flex flex-col items-center justify-center h-full gap-3"
                style={{ color: "var(--ss-text-muted)" }}>
             <div
