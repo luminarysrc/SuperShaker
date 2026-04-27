@@ -4,6 +4,7 @@
  */
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import ThreeViewer from "./ThreeViewer.jsx";
+import InteractiveSheetView from "./InteractiveSheetView.jsx";
 import { readGcodeFile, parseGcode, downloadGcode, uploadBatchExcel } from "../services/EngineClient.js";
 
 // ── Layer definitions ──────────────────────────────────────
@@ -56,6 +57,8 @@ export default function GcodeViewerPanel({
   const [localGcode, setLocalGcode]         = useState(null);
   const [localGcodeData, setLocalGcodeData] = useState(null);
   const [showGcodeText, setShowGcodeText]   = useState(false);
+  // viewMode: "3d" | "gcode" | "sheet"
+  const [viewMode, setViewMode]             = useState("sheet");
 
   // ── Toolpath layer controls ──────────────────────────────
   const [visibleLayers, setVisibleLayers]   = useState(DEFAULT_VISIBLE);
@@ -145,7 +148,13 @@ export default function GcodeViewerPanel({
     setActiveSheet(0);
     setToolProgress(0);
     setIsPlaying(false);
+    // When G-code arrives, switch to 3D; when nesting arrives without gcode, go to sheet map
+    if (gcodeData || allSheets) setViewMode("3d");
   }, [gcodeData, allSheets]);
+
+  React.useEffect(() => {
+    if (nestingResult && !gcodeData && !allSheets) setViewMode("sheet");
+  }, [nestingResult, gcodeData, allSheets]);
 
   // ── Tool simulation playback loop ────────────────────────
   React.useEffect(() => {
@@ -327,67 +336,80 @@ export default function GcodeViewerPanel({
           </div>
         )}
 
-        {/* —— Colour Mode Selector (Bypass Button Replacement) —— */}
-        <div className="flex bg-[var(--ss-card)] rounded-lg p-1 border h-10 items-center overflow-hidden" style={{ borderColor: "var(--ss-border)" }}>
-          {[
-            { id: "type",  label: "By Type" },
-            { id: "pass",  label: "By Pass" },
-            { id: "depth", label: "By Depth" },
-          ].map(m => (
-            <button
-              key={m.id}
-              onClick={() => setColorMode(m.id)}
-              disabled={!displayData}
-              className="px-4 h-full rounded text-xs font-semibold transition-all disabled:opacity-30 disabled:pointer-events-none whitespace-nowrap"
-              style={{
-                backgroundColor: colorMode === m.id ? "var(--ss-accent-soft)" : "transparent",
-                color: colorMode === m.id ? "var(--ss-accent)" : "var(--ss-text-muted)",
-              }}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
+        {/* —— Colour Mode Selector (only shown in 3D view) —— */}
+        {viewMode === "3d" && (
+          <div className="flex bg-[var(--ss-card)] rounded-lg p-1 border h-10 items-center overflow-hidden" style={{ borderColor: "var(--ss-border)" }}>
+            {[
+              { id: "type",  label: "By Type" },
+              { id: "pass",  label: "By Pass" },
+              { id: "depth", label: "By Depth" },
+            ].map(m => (
+              <button
+                key={m.id}
+                onClick={() => setColorMode(m.id)}
+                disabled={!displayData}
+                className="px-4 h-full rounded text-xs font-semibold transition-all disabled:opacity-30 disabled:pointer-events-none whitespace-nowrap"
+                style={{
+                  backgroundColor: colorMode === m.id ? "var(--ss-accent-soft)" : "transparent",
+                  color: colorMode === m.id ? "var(--ss-accent)" : "var(--ss-text-muted)",
+                }}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        )}
 
-        {/* —— Fit to view —— */}
-        <button
-          onClick={() => setFitTrigger(t => t + 1)}
-          disabled={!displayData && !nestingResult}
-          title="Fit scene to view"
-          className="h-10 px-3 rounded-lg transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-30 disabled:pointer-events-none"
-          style={toolbarBtnStyle}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
-          </svg>
-        </button>
+        {/* —— Fit to view (3D only) —— */}
+        {viewMode === "3d" && (
+          <button
+            onClick={() => setFitTrigger(t => t + 1)}
+            disabled={!displayData && !nestingResult}
+            title="Fit scene to view"
+            className="h-10 px-3 rounded-lg transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-30 disabled:pointer-events-none"
+            style={toolbarBtnStyle}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+            </svg>
+          </button>
+        )}
 
         {/* 3D / G-code text toggle */}
         <div
-          className="relative flex items-center rounded-lg p-1 w-[170px] cursor-pointer"
+          className="relative flex items-center rounded-lg p-1 w-[255px] cursor-pointer"
           style={{ backgroundColor: "var(--ss-card)", border: "1px solid var(--ss-border)" }}
         >
+          {/* Sliding pill indicator */}
           <div
-            className="absolute top-1 bottom-1 w-[78px] rounded-md transition-transform duration-300 ease-out"
+            className="absolute top-1 bottom-1 rounded-md transition-all duration-300 ease-out"
             style={{
               backgroundColor: "var(--ss-accent-soft)",
               border: "1px solid rgba(132,204,22,0.2)",
-              transform: showGcodeText ? "translateX(80px)" : "translateX(0px)",
+              width: "calc(33.33% - 2px)",
+              transform: viewMode === "3d" ? "translateX(0%)" : viewMode === "gcode" ? "translateX(100%)" : "translateX(200%)",
             }}
           />
           <button
             disabled={!displayData && !displayText}
-            onClick={() => setShowGcodeText(false)}
-            className="relative z-10 flex-1 text-center text-xs font-semibold py-1.5 transition-all select-none"
-            style={{ color: !showGcodeText ? "var(--ss-accent)" : "var(--ss-text-muted)" }}>
+            onClick={() => { setViewMode("3d"); setShowGcodeText(false); }}
+            className="relative z-10 flex-1 text-center text-xs font-semibold py-1.5 transition-all select-none disabled:opacity-40"
+            style={{ color: viewMode === "3d" ? "var(--ss-accent)" : "var(--ss-text-muted)" }}>
             3D View
           </button>
           <button
             disabled={!displayData && !displayText}
-            onClick={() => setShowGcodeText(true)}
-            className="relative z-10 flex-1 text-center text-xs font-semibold py-1.5 transition-all select-none"
-            style={{ color: showGcodeText ? "var(--ss-accent)" : "var(--ss-text-muted)" }}>
+            onClick={() => { setViewMode("gcode"); setShowGcodeText(true); }}
+            className="relative z-10 flex-1 text-center text-xs font-semibold py-1.5 transition-all select-none disabled:opacity-40"
+            style={{ color: viewMode === "gcode" ? "var(--ss-accent)" : "var(--ss-text-muted)" }}>
             G-Code
+          </button>
+          <button
+            disabled={!nestingResult}
+            onClick={() => { setViewMode("sheet"); setShowGcodeText(false); }}
+            className="relative z-10 flex-1 text-center text-xs font-semibold py-1.5 transition-all select-none disabled:opacity-40"
+            style={{ color: viewMode === "sheet" ? "var(--ss-accent)" : "var(--ss-text-muted)" }}>
+            Sheet Map
           </button>
         </div>
 
@@ -436,9 +458,11 @@ export default function GcodeViewerPanel({
         </button>
       </div>
 
-      {/* ── 3D View or G-code text ──────────────────────────── */}
+      {/* ── Main View Area ───────────────────────────────────── */}
       <div className="flex-1 min-h-0 relative">
-        {showGcodeText && displayText ? (
+        {viewMode === "sheet" && nestingResult ? (
+          <InteractiveSheetView nestingResult={nestingResult} />
+        ) : viewMode === "gcode" && displayText ? (
           <pre
             className="absolute inset-0 overflow-auto p-4 text-[11px] font-mono leading-tight"
             style={{ backgroundColor: "var(--ss-bg)", color: "var(--ss-text)" }}
