@@ -204,17 +204,17 @@ export default function GcodeViewerPanel({
   }, [displayText, activeSheet, allSheets, orderId]);
 
   const toolbarBtnStyle = {
-    backgroundColor: "var(--ss-card)",
+    backgroundColor: "var(--ss-input-bg)",
     border: "1px solid var(--ss-border)",
     color: "var(--ss-text-muted)",
   };
 
   // ── Per-pass segment chips for toolbar ───────────────────
   const PASS_CHIP_DEFS = [
-    { key: "pocket",  color: "#f97316", label: "pkt" },
-    { key: "contour", color: "#84cc16", label: "ctr" },
-    { key: "step",    color: "#a855f7", label: "stp" },
-    { key: "unknown", color: "#94a3b8", label: "oth" },
+    { key: "pocket",  color: "var(--ss-cyan)", label: "pkt" },
+    { key: "contour", color: "var(--ss-violet)", label: "ctr" },
+    { key: "step",    color: "var(--ss-orange)", label: "stp" },
+    { key: "unknown", color: "var(--ss-text-muted)", label: "oth" },
   ];
   const passChips = displayData?.cutByPass
     ? PASS_CHIP_DEFS.map(p => ({ ...p, count: displayData.cutByPass[p.key]?.length ?? 0 }))
@@ -255,8 +255,8 @@ export default function GcodeViewerPanel({
 
       {/* ── Toolbar ──────────────────────────────────────────── */}
       <div
-        className="flex items-center gap-2 p-2 border-b backdrop-blur-sm flex-shrink-0"
-        style={{ backgroundColor: "var(--ss-toolbar-bg)", borderColor: "var(--ss-border)" }}
+        className="flex items-center gap-2 px-3 border-b backdrop-blur-sm flex-shrink-0"
+        style={{ backgroundColor: "var(--ss-panel-bg)", borderColor: "var(--ss-border)", height: 44 }}
       >
         {/* Sheet tabs */}
         {allSheets && allSheets.length > 1 && (
@@ -280,56 +280,54 @@ export default function GcodeViewerPanel({
 
         {/* Stats — per-pass coloured chips */}
         {displayData && (
-          <div
-            className="flex items-center gap-3 mr-2 px-3 py-1.5 rounded-lg"
-            style={{ backgroundColor: "var(--ss-card)", border: "1px solid var(--ss-border)" }}
-          >
-            <div className="flex gap-2 text-xs font-mono whitespace-nowrap">
-              {passChips.map(p => (
-                <span key={p.key} title={`${p.key} moves`} className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: p.color }} />
-                  <span style={{ color: p.color }}>{p.count.toLocaleString()}</span>
-                  <span style={{ color: "var(--ss-text-muted)" }}>{p.label}</span>
-                </span>
-              ))}
-              {rapidCount > 0 && (
-                <span title="rapid moves" className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: "#38bdf8" }} />
-                  <span style={{ color: "#38bdf8" }}>{rapidCount.toLocaleString()}</span>
-                  <span style={{ color: "var(--ss-text-muted)" }}>rap</span>
-                </span>
-              )}
-              {displayData.pathLengthMm > 0 && (
-                <span title="Total path length" className="flex items-center gap-1 border-l pl-2" style={{ borderColor: "var(--ss-border)", color: "#38bdf8" }}>
+          <div className="flex items-center gap-1.5 mr-2">
+            {passChips.map(p => (
+              <div key={p.key} title={`${p.key} moves`} className="ss-chip" style={{ borderLeftColor: p.color }}>
+                <span className="font-mono text-xs font-semibold" style={{ color: p.color }}>{p.count.toLocaleString()}</span>
+                <span className="ss-chip-label">{p.label}</span>
+              </div>
+            ))}
+            {rapidCount > 0 && (
+              <div title="rapid moves" className="ss-chip" style={{ borderLeftColor: "var(--ss-text-muted)" }}>
+                <span className="font-mono text-xs font-semibold" style={{ color: "var(--ss-text)" }}>{rapidCount.toLocaleString()}</span>
+                <span className="ss-chip-label">rap</span>
+              </div>
+            )}
+            {displayData.pathLengthMm > 0 && (
+              <div className="w-[1px] h-5 mx-1" style={{ backgroundColor: "var(--ss-border)" }} />
+            )}
+            {displayData.pathLengthMm > 0 && (
+              <div className="ss-chip accent-border-cyan">
+                <span className="font-mono text-xs font-semibold" style={{ color: "var(--ss-cyan)" }}>
                   {displayData.pathLengthMm > 1000
                     ? `${(displayData.pathLengthMm / 1000).toFixed(1)} m`
                     : `${displayData.pathLengthMm} mm`}
                 </span>
-              )}
-            </div>
+              </div>
+            )}
 
             {currentStats?.total_time_sec > 0 && (
               <>
-                <div className="w-[1px] h-4" style={{ backgroundColor: "var(--ss-border)" }} />
-                <div className="flex gap-3 text-xs font-mono whitespace-nowrap">
-                  <span title="Total Machining Time" className="font-semibold flex items-center gap-1.5" style={{ color: "var(--ss-accent)" }}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                    {currentStats.total_time_formatted}
+                <div className="w-[1px] h-5 mx-1" style={{ backgroundColor: "var(--ss-border)" }} />
+                <div className="ss-chip accent-border-violet">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--ss-violet)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  <span className="font-mono text-xs font-semibold" style={{ color: "var(--ss-text)" }}>{currentStats.total_time_formatted}</span>
+                </div>
+                <div className="ss-chip accent-border-green">
+                  <span className="font-mono text-xs font-semibold" style={{ color: "var(--ss-green)" }}>
+                    {currentStats.cut_time_sec < 60 ? `${Math.round(currentStats.cut_time_sec)}s` : `${Math.floor(currentStats.cut_time_sec / 60)}m`}
                   </span>
-                  <span title="Cut Time" className="text-green-500">
-                    {currentStats.cut_time_sec < 60 ? `${Math.round(currentStats.cut_time_sec)}s` : `${Math.floor(currentStats.cut_time_sec / 60)}m`} cut
+                  <span className="ss-chip-label">cut</span>
+                </div>
+                <div className="ss-chip accent-border-orange">
+                  <span className="font-mono text-xs font-semibold" style={{ color: "var(--ss-orange)" }}>
+                    {currentStats.rapid_time_sec < 60 ? `${Math.round(currentStats.rapid_time_sec)}s` : `${Math.floor(currentStats.rapid_time_sec / 60)}m`}
                   </span>
-                  <span title="Rapid Time" className="text-yellow-500">
-                    {currentStats.rapid_time_sec < 60 ? `${Math.round(currentStats.rapid_time_sec)}s` : `${Math.floor(currentStats.rapid_time_sec / 60)}m`} rap
-                  </span>
-                  <span title="Distance" className="text-sky-500">
-                    {currentStats.total_distance_mm > 1000
-                      ? `${(currentStats.total_distance_mm / 1000).toFixed(1)}m`
-                      : `${Math.round(currentStats.total_distance_mm)}mm`}
-                  </span>
-                  <span title="Tool Changes" className="text-purple-400 font-semibold">
-                    {currentStats.tool_changes}T
-                  </span>
+                  <span className="ss-chip-label">rap</span>
+                </div>
+                <div className="ss-chip accent-border-violet">
+                  <span className="font-mono text-xs font-bold" style={{ color: "var(--ss-violet)" }}>{currentStats.tool_changes}</span>
+                  <span className="ss-chip-label">T</span>
                 </div>
               </>
             )}
@@ -338,7 +336,7 @@ export default function GcodeViewerPanel({
 
         {/* —— Colour Mode Selector (only shown in 3D view) —— */}
         {viewMode === "3d" && (
-          <div className="flex bg-[var(--ss-card)] rounded-lg p-1 border h-10 items-center overflow-hidden" style={{ borderColor: "var(--ss-border)" }}>
+          <div className="ss-segment">
             {[
               { id: "type",  label: "By Type" },
               { id: "pass",  label: "By Pass" },
@@ -348,11 +346,7 @@ export default function GcodeViewerPanel({
                 key={m.id}
                 onClick={() => setColorMode(m.id)}
                 disabled={!displayData}
-                className="px-4 h-full rounded text-xs font-semibold transition-all disabled:opacity-30 disabled:pointer-events-none whitespace-nowrap"
-                style={{
-                  backgroundColor: colorMode === m.id ? "var(--ss-accent-soft)" : "transparent",
-                  color: colorMode === m.id ? "var(--ss-accent)" : "var(--ss-text-muted)",
-                }}
+                className={`ss-segment-btn ${colorMode === m.id ? "active" : ""} disabled:opacity-30 disabled:pointer-events-none`}
               >
                 {m.label}
               </button>
@@ -376,39 +370,23 @@ export default function GcodeViewerPanel({
         )}
 
         {/* 3D / G-code text toggle */}
-        <div
-          className="relative flex items-center rounded-lg p-1 w-[255px] cursor-pointer"
-          style={{ backgroundColor: "var(--ss-card)", border: "1px solid var(--ss-border)" }}
-        >
-          {/* Sliding pill indicator */}
-          <div
-            className="absolute top-1 bottom-1 rounded-md transition-all duration-300 ease-out"
-            style={{
-              backgroundColor: "var(--ss-accent-soft)",
-              border: "1px solid rgba(132,204,22,0.2)",
-              width: "calc(33.33% - 2px)",
-              transform: viewMode === "3d" ? "translateX(0%)" : viewMode === "gcode" ? "translateX(100%)" : "translateX(200%)",
-            }}
-          />
+        <div className="ss-segment w-[255px]">
           <button
             disabled={!displayData && !displayText}
             onClick={() => { setViewMode("3d"); setShowGcodeText(false); }}
-            className="relative z-10 flex-1 text-center text-xs font-semibold py-1.5 transition-all select-none disabled:opacity-40"
-            style={{ color: viewMode === "3d" ? "var(--ss-accent)" : "var(--ss-text-muted)" }}>
+            className={`ss-segment-btn ${viewMode === "3d" ? "active" : ""} disabled:opacity-40`}>
             3D View
           </button>
           <button
             disabled={!displayData && !displayText}
             onClick={() => { setViewMode("gcode"); setShowGcodeText(true); }}
-            className="relative z-10 flex-1 text-center text-xs font-semibold py-1.5 transition-all select-none disabled:opacity-40"
-            style={{ color: viewMode === "gcode" ? "var(--ss-accent)" : "var(--ss-text-muted)" }}>
+            className={`ss-segment-btn ${viewMode === "gcode" ? "active" : ""} disabled:opacity-40`}>
             G-Code
           </button>
           <button
             disabled={!nestingResult}
             onClick={() => { setViewMode("sheet"); setShowGcodeText(false); }}
-            className="relative z-10 flex-1 text-center text-xs font-semibold py-1.5 transition-all select-none disabled:opacity-40"
-            style={{ color: viewMode === "sheet" ? "var(--ss-accent)" : "var(--ss-text-muted)" }}>
+            className={`ss-segment-btn ${viewMode === "sheet" ? "active" : ""} disabled:opacity-40`}>
             Sheet Map
           </button>
         </div>
@@ -486,11 +464,12 @@ export default function GcodeViewerPanel({
             {/* Tool simulation scrubber */}
             {displayData && (
               <div
-                className="absolute bottom-4 right-4 z-10 rounded-xl p-3 w-72 animate-fade-in shadow-2xl"
+                className="absolute bottom-4 right-4 z-10 rounded-xl p-3.5 w-72 animate-fade-in shadow-2xl"
                 style={{
-                  backgroundColor: "rgba(13,13,18,0.85)",
-                  border: "1px solid var(--ss-border)",
-                  backdropFilter: "blur(6px)",
+                  backgroundColor: "rgba(17,20,34,0.92)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  backdropFilter: "blur(12px)",
+                  borderRadius: "var(--radius-lg)",
                 }}
               >
                 <div className="flex items-center justify-between mb-2">
@@ -523,10 +502,10 @@ export default function GcodeViewerPanel({
                   max="1000"
                   value={Math.round(toolProgress * 1000)}
                   onChange={e => { setIsPlaying(false); setToolProgress(parseInt(e.target.value) / 1000); }}
-                  className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                  className="w-full h-[3px] rounded-full appearance-none cursor-pointer"
                   style={{
                     accentColor: "var(--ss-accent)",
-                    background: `linear-gradient(to right, var(--ss-accent) ${toolProgress * 100}%, var(--ss-border) ${toolProgress * 100}%)`,
+                    background: `linear-gradient(to right, var(--ss-violet) 0%, var(--ss-cyan) ${toolProgress * 100}%, var(--ss-input-bg) ${toolProgress * 100}%)`,
                   }}
                 />
 
@@ -556,16 +535,13 @@ export default function GcodeViewerPanel({
                     </button>
                   </div>
                   <div className="flex-1" />
-                  <div className="flex gap-1 bg-[var(--ss-card)] p-0.5 rounded-md border" style={{ borderColor: "var(--ss-border)" }}>
+                  <div className="ss-segment">
                     {[0.5, 1, 2, 5].map(s => (
                       <button
                         key={s}
                         onClick={() => setPlaySpeed(s)}
-                        className="px-1.5 py-0.5 rounded text-[10px] font-mono transition-all"
-                        style={{
-                          backgroundColor: playSpeed === s ? "var(--ss-accent-soft)" : "transparent",
-                          color: playSpeed === s ? "var(--ss-accent)" : "var(--ss-text-muted)",
-                        }}
+                        className={`ss-segment-btn ${playSpeed === s ? "active" : ""}`}
+                        style={{ fontSize: 10, padding: "3px 6px" }}
                       >{s}×</button>
                     ))}
                   </div>

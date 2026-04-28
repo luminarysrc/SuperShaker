@@ -59,6 +59,7 @@ export default function Sidebar({
       style={{
         backgroundColor: "var(--ss-sidebar-bg)",
         borderColor: "var(--ss-border)",
+        borderLeft: "3px solid var(--ss-violet)",
       }}
       id="sidebar"
     >
@@ -69,7 +70,8 @@ export default function Sidebar({
           className="w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold transition-all focus:outline-none active:scale-95"
           style={{
             backgroundColor: "var(--ss-accent)",
-            color: "var(--ss-text-inverse)",
+            color: "#FFFFFF",
+            border: "2px solid var(--ss-violet)",
           }}
           title={user?.name || "User Profile"}>
           {(user?.name || "U")[0].toUpperCase()}
@@ -105,8 +107,8 @@ export default function Sidebar({
           className="w-10 h-10 rounded-lg flex items-center justify-center transition-all focus:outline-none active:scale-95"
           style={{
             backgroundColor: showMachinePanel ? "var(--ss-accent-soft)" : "var(--ss-card)",
-            border: "1px solid " + (showMachinePanel ? "var(--ss-accent)" : "var(--ss-border)"),
-            color: showMachinePanel ? "var(--ss-accent)" : "var(--ss-text-muted)",
+            border: "1px solid " + (showMachinePanel ? "var(--ss-violet)" : "var(--ss-border)"),
+            color: showMachinePanel ? "var(--ss-violet)" : "var(--ss-text-muted)",
           }}
           title="Machine Profiles">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"

@@ -687,8 +687,8 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
 
   const typeColors = {
     "Shaker": { text: "#3b82f6", border: "rgba(59,130,246,0.25)", bg: "rgba(59,130,246,0.08)" },
-    "Shaker Step": { text: "#22c55e", border: "rgba(34,197,94,0.25)", bg: "rgba(34,197,94,0.08)" },
-    "Slab": { text: "#f59e0b", border: "rgba(245,158,11,0.25)", bg: "rgba(245,158,11,0.08)" },
+    "Shaker Step": { text: "#00D68F", border: "rgba(0,214,143,0.25)", bg: "rgba(0,214,143,0.08)" },
+    "Slab": { text: "#FF8C00", border: "rgba(255,140,0,0.25)", bg: "rgba(255,140,0,0.08)" }
   };
 
   // ═══════════════════════════════════════════════════════
@@ -696,26 +696,25 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
     <div className="h-full overflow-y-auto" id="supershaker-panel" style={{ backgroundColor: "transparent" }}>
       <div className="p-4 space-y-4">
 
-        {/* ── KPI Bar ───────────────────────────────────── */}
+        {/* ── KPI Bar ─────────────────────────────────── */}
         {nestingResult && (
           <div className="grid grid-cols-4 gap-2 animate-fade-in" id="kpi-bar">
             {[
-              { label: "Sheets", value: nestingResult.total_sheets, color: "#0ea5e9" },
-              { label: "Parts", value: nestingResult.total_parts, color: "#22c55e" },
-              { label: "Yield", value: `${nestingResult.yield_percentage}%`, color: "var(--ss-accent)" },
-              { label: "Area", value: `${nestingResult.total_area_m2}m²`, color: "#a855f7" },
+              { label: "Sheets", value: nestingResult.total_sheets, borderColor: "var(--ss-violet)" },
+              { label: "Parts", value: nestingResult.total_parts, borderColor: "var(--ss-cyan)" },
+              { label: "Yield", value: `${nestingResult.yield_percentage}%`, borderColor: "var(--ss-green)", valueColor: "var(--ss-green)" },
+              { label: "Area", value: `${nestingResult.total_area_m2}m²`, borderColor: "var(--ss-orange)" },
             ].map(k => (
-              <div key={k.label} className="rounded-lg p-2 text-center"
-                   style={{ backgroundColor: "var(--ss-card)", border: "1px solid var(--ss-border)" }}>
-                <p className="text-[9px] font-semibold tracking-widest uppercase" style={{ color: "var(--ss-text-muted)" }}>{k.label}</p>
-                <p className="text-sm font-bold font-mono" style={{ color: k.color }}>{k.value}</p>
+              <div key={k.label} className="ss-kpi" style={{ borderLeftColor: k.borderColor }}>
+                <p className="ss-kpi-label">{k.label}</p>
+                <p className="ss-kpi-value" style={{ color: k.valueColor || "var(--ss-text)" }}>{k.value}</p>
               </div>
             ))}
           </div>
         )}
 
-        {/* ── Section Tabs ──────────────────────────────── */}
-        <div className="flex gap-1 rounded-lg p-1" style={{ backgroundColor: "var(--ss-card)", border: "1px solid var(--ss-border)" }}>
+        {/* ── Section Tabs ────────────────────────────── */}
+        <div className="ss-segment">
           {[
             { key: "workflow", label: "Workflow" },
             { key: "params", label: "Parameters" },
@@ -724,11 +723,7 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
             <button
               key={tab.key}
               onClick={() => setActiveSection(tab.key)}
-              className="flex-1 px-2 py-1.5 rounded-md text-xs font-medium transition-all"
-              style={{
-                backgroundColor: activeSection === tab.key ? "var(--ss-accent-soft)" : "transparent",
-                color: activeSection === tab.key ? "var(--ss-accent)" : "var(--ss-text-muted)",
-              }}
+              className={`ss-segment-btn ${activeSection === tab.key ? "active" : ""}`}
             >
               {tab.label}
             </button>
@@ -741,27 +736,16 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
 
             {/* Unit toggle */}
             <div className="flex items-center gap-3">
-              <span className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "var(--ss-text-muted)" }}>Units</span>
-              <div
-                className="relative flex items-center rounded-lg p-1 w-[120px] cursor-pointer"
-                style={{ backgroundColor: "var(--ss-card)", border: "1px solid var(--ss-border)" }}
-              >
-                <div 
-                  className="absolute top-1 bottom-1 w-[54px] rounded-md transition-transform duration-300 ease-out"
-                  style={{
-                    backgroundColor: "var(--ss-accent-soft)",
-                    border: "1px solid rgba(132,204,22,0.2)",
-                    transform: useInch ? "translateX(56px)" : "translateX(0px)",
-                  }}
-                />
+              <span className="ss-section-title">Units</span>
+              <div className="ss-segment w-[120px]">
                 <button onClick={() => setUseInch(false)}
-                  className="relative z-10 flex-1 text-center text-[10px] font-mono font-bold py-1 transition-all select-none"
-                  style={{ color: !useInch ? "var(--ss-accent)" : "var(--ss-text-muted)" }}>
+                  className={`ss-segment-btn ${!useInch ? "active" : ""}`}
+                  style={{ fontSize: 10 }}>
                   MM
                 </button>
                 <button onClick={() => setUseInch(true)}
-                  className="relative z-10 flex-1 text-center text-[10px] font-mono font-bold py-1 transition-all select-none"
-                  style={{ color: useInch ? "var(--ss-accent)" : "var(--ss-text-muted)" }}>
+                  className={`ss-segment-btn ${useInch ? "active" : ""}`}
+                  style={{ fontSize: 10 }}>
                   INCH
                 </button>
               </div>
@@ -769,7 +753,9 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
 
             {/* Order # */}
             <div className="flex items-center gap-2">
-              <label className="text-xs whitespace-nowrap w-16" style={{ color: "var(--ss-text-muted)" }}>Order #</label>
+              <label className="text-xs whitespace-nowrap w-16 flex items-center gap-1" style={{ color: "var(--ss-text-muted)" }}>
+                <span style={{ color: "var(--ss-violet)", opacity: 0.6 }}>#</span> Order
+              </label>
               <input
                 type="text"
                 value={settings.order_id}
@@ -780,13 +766,13 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
             </div>
             
             {/* Cost Settings */}
-            <div className="flex flex-col gap-2 p-2 rounded-lg" style={{ backgroundColor: "var(--ss-card)", border: "1px solid var(--ss-border)" }}>
+            <div className="flex flex-col gap-2 p-2 rounded-lg" style={{ backgroundColor: "var(--ss-input-bg)", border: "1px solid var(--ss-border)" }}>
               <button 
                 onClick={() => setShowCostSettings(!showCostSettings)}
                 className="flex items-center justify-between text-xs cursor-pointer w-full text-left transition-colors"
                 style={{ color: "var(--ss-text-muted)" }}>
-                <span className="font-medium tracking-wider text-[10px] uppercase">Job Costing Setup</span>
-                <span>{showCostSettings ? '▼' : '▶'}</span>
+                <span className="ss-section-title">Job Costing Setup</span>
+                <span style={{ color: "var(--ss-violet)" }}>{showCostSettings ? '▼' : '▶'}</span>
               </button>
               
               {showCostSettings && (
@@ -812,10 +798,7 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
             {/* Add door */}
             <section className="space-y-4">
               <div className="flex items-center gap-3">
-                <h3 className="text-[10px] font-semibold uppercase tracking-widest whitespace-nowrap"
-                    style={{ color: "var(--ss-text-muted)" }}>
-                  Add Part
-                </h3>
+                <h3 className="ss-section-title whitespace-nowrap">Add Part</h3>
                 <hr className="flex-1" style={{ borderColor: "var(--ss-border)" }} />
               </div>
               <div className="grid grid-cols-[1fr_1fr_1fr_1.8fr] gap-2">
@@ -851,9 +834,9 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
 
               {/* Facade Preview */}
               <div className="rounded-lg p-3 flex gap-3 items-start animate-fade-in" key={newDoor.type}
-                   style={{ backgroundColor: "var(--ss-card)", border: "1px solid var(--ss-border)" }}>
+                   style={{ backgroundColor: "var(--ss-input-bg)", border: `1px solid ${typeColors[newDoor.type]?.border || 'var(--ss-border)'}` }}>
                 <div className="w-24 h-20 flex-shrink-0 rounded flex items-center justify-center"
-                     style={{ backgroundColor: "var(--ss-input-bg)", border: "1px solid var(--ss-border)" }}>
+                     style={{ backgroundColor: "var(--ss-bg)", border: `1px solid ${typeColors[newDoor.type]?.border || 'var(--ss-border)'}` }}>
                   {newDoor.type === "Shaker" && (
                     <svg width="80" height="56" viewBox="0 0 80 56" fill="none">
                       <rect x="4" y="4" width="72" height="48" rx="2" stroke="#3b82f6" strokeWidth="1.5" strokeOpacity="0.6"/>
@@ -866,23 +849,23 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
                   )}
                   {newDoor.type === "Shaker Step" && (
                     <svg width="80" height="56" viewBox="0 0 80 56" fill="none">
-                      <rect x="4" y="4" width="72" height="48" rx="2" stroke="#22c55e" strokeWidth="1.5" strokeOpacity="0.6"/>
-                      <rect x="14" y="12" width="52" height="32" rx="1" stroke="#22c55e" strokeWidth="1" fill="#22c55e" fillOpacity="0.05"/>
-                      <rect x="20" y="17" width="40" height="22" rx="1" stroke="#22c55e" strokeWidth="0.8" strokeDasharray="2 1" strokeOpacity="0.4"/>
-                      <line x1="14" y1="12" x2="4" y2="4" stroke="#22c55e" strokeWidth="0.5" strokeOpacity="0.3"/>
-                      <line x1="66" y1="12" x2="76" y2="4" stroke="#22c55e" strokeWidth="0.5" strokeOpacity="0.3"/>
-                      <line x1="14" y1="44" x2="4" y2="52" stroke="#22c55e" strokeWidth="0.5" strokeOpacity="0.3"/>
-                      <line x1="66" y1="44" x2="76" y2="52" stroke="#22c55e" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <rect x="4" y="4" width="72" height="48" rx="2" stroke="#00D68F" strokeWidth="1.5" strokeOpacity="0.6"/>
+                      <rect x="14" y="12" width="52" height="32" rx="1" stroke="#00D68F" strokeWidth="1" fill="#00D68F" fillOpacity="0.05"/>
+                      <rect x="20" y="17" width="40" height="22" rx="1" stroke="#00D68F" strokeWidth="0.8" strokeDasharray="2 1" strokeOpacity="0.4"/>
+                      <line x1="14" y1="12" x2="4" y2="4" stroke="#00D68F" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="66" y1="12" x2="76" y2="4" stroke="#00D68F" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="14" y1="44" x2="4" y2="52" stroke="#00D68F" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="66" y1="44" x2="76" y2="52" stroke="#00D68F" strokeWidth="0.5" strokeOpacity="0.3"/>
                     </svg>
                   )}
                   {newDoor.type === "Slab" && (
                     <svg width="80" height="56" viewBox="0 0 80 56" fill="none">
-                      <rect x="4" y="4" width="72" height="48" rx="1" stroke="#f59e0b" strokeWidth="1.5" strokeOpacity="0.6" fill="#f59e0b" fillOpacity="0.03"/>
-                      <line x1="4" y1="4" x2="8" y2="8" stroke="#f59e0b" strokeWidth="0.5" strokeOpacity="0.25"/>
-                      <line x1="76" y1="4" x2="72" y2="8" stroke="#f59e0b" strokeWidth="0.5" strokeOpacity="0.25"/>
-                      <line x1="4" y1="52" x2="8" y2="48" stroke="#f59e0b" strokeWidth="0.5" strokeOpacity="0.25"/>
-                      <line x1="76" y1="52" x2="72" y2="48" stroke="#f59e0b" strokeWidth="0.5" strokeOpacity="0.25"/>
-                      <text x="40" y="30" textAnchor="middle" fill="#f59e0b" fillOpacity="0.3" fontSize="8" fontFamily="monospace">FLAT</text>
+                      <rect x="4" y="4" width="72" height="48" rx="1" stroke="#FF8C00" strokeWidth="1.5" strokeOpacity="0.6" fill="#FF8C00" fillOpacity="0.03"/>
+                      <line x1="4" y1="4" x2="8" y2="8" stroke="#FF8C00" strokeWidth="0.5" strokeOpacity="0.25"/>
+                      <line x1="76" y1="4" x2="72" y2="8" stroke="#FF8C00" strokeWidth="0.5" strokeOpacity="0.25"/>
+                      <line x1="4" y1="52" x2="8" y2="48" stroke="#FF8C00" strokeWidth="0.5" strokeOpacity="0.25"/>
+                      <line x1="76" y1="52" x2="72" y2="48" stroke="#FF8C00" strokeWidth="0.5" strokeOpacity="0.25"/>
+                      <text x="40" y="30" textAnchor="middle" fill="#FF8C00" fillOpacity="0.3" fontSize="8" fontFamily="monospace">FLAT</text>
                     </svg>
                   )}
                 </div>
@@ -897,8 +880,11 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
               </div>
 
               <button onClick={handleAddDoor}
-                className="ss-btn-ghost w-full text-xs py-1.5">
-                + Add Part
+                className="w-full text-xs py-2 rounded-lg transition-all cursor-pointer group"
+                style={{ border: "1px dashed rgba(108,99,255,0.4)", color: "var(--ss-violet)", backgroundColor: "transparent" }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--ss-violet)'; e.currentTarget.style.backgroundColor = 'rgba(108,99,255,0.08)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(108,99,255,0.4)'; e.currentTarget.style.backgroundColor = 'transparent'; }}>
+                <span className="inline-block transition-transform group-hover:rotate-90">+</span> Add Part
               </button>
             </section>
 
@@ -1016,14 +1002,14 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
                 onClick={() => setShowOffcuts(!showOffcuts)}
               >
                 <h3 className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-2"
-                    style={{ color: "var(--ss-accent)" }}>
+                    style={{ color: "var(--ss-orange)" }}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v4"/><polyline points="15 3 21 9 21 21s-1.5-1-4-1-4 1-4 1V9"/><line x1="2" x2="22" y1="9" y2="9"/><line x1="7" x2="7" y1="3" y2="9"/></svg>
                   Offcuts / Remnants Inventory
                 </h3>
-                <span className="text-[9px] font-mono px-2 py-0.5 rounded-full" style={{ backgroundColor: "var(--ss-accent-soft)", color: "var(--ss-accent)" }}>
+                <span className="text-[9px] font-mono px-2 py-0.5 rounded-full" style={{ backgroundColor: "rgba(255,140,0,0.15)", color: "var(--ss-orange)" }}>
                   {offcuts.length} pieces
                 </span>
-                <span className="text-[10px]" style={{ color: "var(--ss-text-muted)" }}>
+                <span className="text-[10px]" style={{ color: "var(--ss-orange)" }}>
                   {showOffcuts ? '▼' : '▶'}
                 </span>
                 <hr className="flex-1 opacity-20" style={{ borderColor: "var(--ss-border)" }} />
@@ -1101,7 +1087,8 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
             <div className="space-y-2">
               <button onClick={handleNesting}
                 disabled={!!isLoading || doors.length === 0}
-                className="ss-btn-ghost w-full text-sm py-2.5 flex items-center justify-center gap-2">
+                className="ss-btn-ghost w-full text-sm py-2.5 flex items-center justify-center gap-2"
+                style={{ borderColor: "rgba(108,99,255,0.4)", color: "var(--ss-violet)" }}>
                 {isLoading === "nesting" ? (
                   <><Spinner /> Running Nesting…</>
                 ) : (
@@ -1112,7 +1099,7 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
               <button onClick={handleGenerateLabels}
                 disabled={!!isLoading || doors.length === 0}
                 className="ss-btn-ghost w-full text-sm py-2.5 flex items-center justify-center gap-2"
-                style={{ color: "#0ea5e9" }}>
+                style={{ borderColor: "rgba(0,207,222,0.3)", color: "var(--ss-cyan)" }}>
                 {isLoading === "labels" ? (
                   <><Spinner /> Generating PDF…</>
                 ) : (
@@ -1123,7 +1110,7 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
               <button onClick={handleCuttingMap}
                 disabled={!!isLoading || !nestingResult}
                 className="ss-btn-ghost w-full text-sm py-2.5 flex items-center justify-center gap-2"
-                style={{ color: "#22c55e" }}>
+                style={{ borderColor: "rgba(0,207,222,0.3)", color: "var(--ss-cyan)" }}>
                 {isLoading === "cuttingmap" ? (
                   <><Spinner /> Generating PDF…</>
                 ) : (
@@ -1159,8 +1146,8 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
                          border: "1px solid rgba(132,204,22,0.2)",
                          boxShadow: "var(--ss-shadow-sm)",
                        }}>
-                <h3 className="text-[10px] font-semibold uppercase tracking-widest mb-2 pb-1"
-                    style={{ color: "var(--ss-accent)", borderBottom: "1px solid rgba(132,204,22,0.15)" }}>
+                <h3 className="ss-section-title mb-2 pb-1"
+                    style={{ color: "var(--ss-violet)", borderBottom: "1px solid rgba(108,99,255,0.15)" }}>
                   Job Estimate
                 </h3>
                 <div className="grid grid-cols-2 gap-3 text-xs">
@@ -1176,7 +1163,7 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
                   </div>
                   <div className="col-span-2 pt-2 mt-1 flex justify-between items-end" style={{ borderTop: "1px solid var(--ss-border)" }}>
                     <span className="text-[10px] uppercase" style={{ color: "var(--ss-text-muted)" }}>Total Quote Price:</span>
-                    <span className="font-mono font-bold text-lg" style={{ color: "var(--ss-accent)" }}>${nestingResult.costing.total_estimate?.toFixed(2)}</span>
+                    <span className="font-mono font-bold text-lg" style={{ color: "var(--ss-violet)" }}>${nestingResult.costing.total_estimate?.toFixed(2)}</span>
                   </div>
                 </div>
               </section>

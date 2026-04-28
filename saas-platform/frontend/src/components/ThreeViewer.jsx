@@ -21,25 +21,25 @@ import * as THREE from "three";
 // ═══════════════════════════════════════════════════════════
 
 const PASS_COLORS = {
-  pocket:  new THREE.Color("#f97316"), // orange
-  contour: new THREE.Color("#84cc16"), // lime
-  step:    new THREE.Color("#a855f7"), // violet
-  unknown: new THREE.Color("#94a3b8"), // slate
+  pocket:  new THREE.Color("#00CFDE"), // cyan
+  contour: new THREE.Color("#6C63FF"), // violet
+  step:    new THREE.Color("#FF8C00"), // orange
+  unknown: new THREE.Color("#8F9BB3"), // muted
 };
 
 const TYPE_COLORS = {
   "Shaker":      new THREE.Color("#3b82f6"),
-  "Shaker Step": new THREE.Color("#22c55e"),
-  "Slab":        new THREE.Color("#f59e0b"),
-  "default":     new THREE.Color("#94a3b8"),
+  "Shaker Step": new THREE.Color("#00D68F"),
+  "Slab":        new THREE.Color("#FF8C00"),
+  "default":     new THREE.Color("#6C63FF"),
 };
 
-/** Map a normalised depth (0 = surface, 1 = deepest) → a THREE.Color on a magenta→cyan gradient */
+/** Map a normalised depth (0 = surface, 1 = deepest) → a THREE.Color on a cyan→violet gradient */
 function depthColor(t) {
-  // t=0 (surface): bright cyan tweaked to lime/cyan
-  // t=1 (deep):    deep magenta/purple
-  const surface = new THREE.Color("#22d3ee"); // cyan-400
-  const deep    = new THREE.Color("#c026d3"); // fuchsia-600
+  // t=0 (surface): bright cyan
+  // t=1 (deep):    deep violet
+  const surface = new THREE.Color("#00CFDE"); // cyan
+  const deep    = new THREE.Color("#6C63FF"); // violet
   return surface.clone().lerp(deep, t);
 }
 
@@ -55,10 +55,10 @@ function MachineBed({ width, height }) {
         args={[gridSize * 1.2, gridSize * 1.2]}
         cellSize={10}
         cellThickness={0.4}
-        cellColor="#1e293b"
+        cellColor="#1A1D2E"
         sectionSize={50}
         sectionThickness={0.8}
-        sectionColor="#334155"
+        sectionColor="#2A2F45"
         fadeDistance={gridSize * 2}
         fadeStrength={1}
         position={[width / 2, height / 2, 0]}

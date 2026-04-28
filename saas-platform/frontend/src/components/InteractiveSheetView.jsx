@@ -7,18 +7,18 @@
  */
 import React, { useState, useRef, useCallback, useEffect } from "react";
 
-// ── Colour palette – matches SuperShakerPanel door colours ──
+// ── Colour palette – Blockly design system ──────────────────
 const TYPE_STYLE = {
   "Shaker":      { fill: "rgba(59,130,246,0.18)",  stroke: "#3b82f6", label: "#60a5fa" },
-  "Shaker Step": { fill: "rgba(34,197,94,0.18)",   stroke: "#22c55e", label: "#4ade80" },
-  "Slab":        { fill: "rgba(245,158,11,0.18)",  stroke: "#f59e0b", label: "#fbbf24" },
-  default:       { fill: "rgba(99,102,241,0.18)",  stroke: "#6366f1", label: "#818cf8" },
+  "Shaker Step": { fill: "rgba(0,214,143,0.14)",   stroke: "#00D68F", label: "#00D68F" },
+  "Slab":        { fill: "rgba(255,140,0,0.14)",   stroke: "#FF8C00", label: "#FF8C00" },
+  default:       { fill: "rgba(108,99,255,0.14)",  stroke: "#6C63FF", label: "#6C63FF" },
 };
 
 const SELECTED_STYLE = {
-  fill:   "rgba(132,204,22,0.28)",
-  stroke: "#84cc16",
-  label:  "#a3e635",
+  fill:   "rgba(108,99,255,0.18)",
+  stroke: "#6C63FF",
+  label:  "#A5A0FF",
 };
 
 function useContainerSize(ref) {
@@ -81,8 +81,9 @@ function SheetCanvas({ sheet, meta, selectedId, onSelect, containerSize }) {
       {/* Sheet background */}
       <rect
         x={ox} y={oy} width={drawW} height={drawH}
-        fill="#0d0d12" stroke="#334155" strokeWidth={1.5}
+        fill="#08090F" stroke="rgba(255,255,255,0.12)" strokeWidth={1.5}
       />
+      <rect x={ox} y={oy} width={drawW} height={drawH} fill="rgba(255,255,255,0.015)" />
       <rect x={ox} y={oy} width={drawW} height={drawH} fill="url(#grid)" />
 
       {/* Margin indicator (dashed) */}
@@ -199,9 +200,10 @@ function SheetCanvas({ sheet, meta, selectedId, onSelect, containerSize }) {
             {isSel && (
               <rect
                 x={px - 3} y={py - 3} width={pw + 6} height={ph + 6}
-                fill="none" stroke="#a3e635" strokeWidth={1.5}
+                fill="none" stroke="#6C63FF" strokeWidth={1.5}
                 strokeDasharray="5 3" rx={4}
                 opacity={0.8}
+                filter="drop-shadow(0 0 6px rgba(108,99,255,0.5))"
               >
                 <animate attributeName="stroke-dashoffset" from="0" to="16"
                   dur="1s" repeatCount="indefinite" />
