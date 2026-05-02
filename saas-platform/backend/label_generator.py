@@ -99,6 +99,12 @@ def draw_label(c, x, y, width, height, door, order_id):
         c.setFillColorRGB(0.13, 0.77, 0.36) # green
     elif type_str == "Slab":
         c.setFillColorRGB(0.96, 0.62, 0.04) # amber
+    elif type_str == "Grooved Slab":
+        c.setFillColorRGB(0.0, 0.81, 0.87) # cyan
+    elif type_str == "Beaded Shaker":
+        c.setFillColorRGB(0.42, 0.38, 1.0) # violet
+    elif type_str == "Thin Rail Shaker":
+        c.setFillColorRGB(0.23, 0.51, 0.96) # sky-blue
     else:
         c.setFillColorRGB(0.5, 0.5, 0.5)
 

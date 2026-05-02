@@ -28,10 +28,13 @@ const PASS_COLORS = {
 };
 
 const TYPE_COLORS = {
-  "Shaker":      new THREE.Color("#3b82f6"),
-  "Shaker Step": new THREE.Color("#00D68F"),
-  "Slab":        new THREE.Color("#FF8C00"),
-  "default":     new THREE.Color("#6C63FF"),
+  "Shaker":           new THREE.Color("#60A5FA"), // electric blue
+  "Shaker Step":      new THREE.Color("#84CC16"), // lime green
+  "Slab":             new THREE.Color("#F97316"), // warm orange
+  "Grooved Slab":     new THREE.Color("#14B8A6"), // teal
+  "Beaded Shaker":    new THREE.Color("#A855F7"), // purple
+  "Thin Rail Shaker": new THREE.Color("#F43F5E"), // rose red
+  "default":          new THREE.Color("#8F9BB3"), // muted grey
 };
 
 /** Map a normalised depth (0 = surface, 1 = deepest) → a THREE.Color on a cyan→violet gradient */
@@ -291,9 +294,12 @@ function SheetBoxes({ nestingResult, settings }) {
   if (!nestingResult?.sheets) return null;
 
   const typeColors = {
-    "Shaker":      "#3b82f6",
-    "Shaker Step": "#22c55e",
-    "Slab":        "#f59e0b",
+    "Shaker":           "#60A5FA", // electric blue
+    "Shaker Step":      "#84CC16", // lime green
+    "Slab":             "#F97316", // warm orange
+    "Grooved Slab":     "#14B8A6", // teal
+    "Beaded Shaker":    "#A855F7", // purple
+    "Thin Rail Shaker": "#F43F5E", // rose red
   };
 
   return (
@@ -341,7 +347,7 @@ function SheetBoxes({ nestingResult, settings }) {
                       itemSize={3}
                     />
                   </bufferGeometry>
-                  <lineBasicMaterial color={c} opacity={0.5} transparent linewidth={1} />
+                  <lineBasicMaterial color={c} opacity={0.9} transparent linewidth={2} />
                 </line>
               );
             })}

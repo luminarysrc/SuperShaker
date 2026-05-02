@@ -16,7 +16,7 @@ const LAYER_DEFS = [
   { key: "rapid",   label: "Rapids",   color: "#38bdf8", desc: "Rapid positioning moves" },
 ];
 
-const DEFAULT_VISIBLE = { rapid: true, pocket: true, contour: true, step: true, unknown: true };
+const DEFAULT_VISIBLE = { rapid: false, pocket: true, contour: true, step: true, unknown: true };
 
 // ── Small utility components ───────────────────────────────
 function LayerRow({ def, checked, onChange }) {
@@ -71,6 +71,17 @@ export default function GcodeViewerPanel({
   const [playSpeed, setPlaySpeed]     = useState(1);
   const animFrameRef                  = useRef(null);
   const lastTimeRef                   = useRef(null);
+  // Track whether nesting layout was edited after last G-code generation
+  const [nestingDirty, setNestingDirty] = useState(false);
+  const prevNestingRef = useRef(null);
+  React.useEffect(() => {
+    // If gcodeData exists and nestingResult changed, mark as dirty
+    if (gcodeData && nestingResult && prevNestingRef.current && nestingResult !== prevNestingRef.current) {
+      setNestingDirty(true);
+    }
+    if (!gcodeData) setNestingDirty(false);
+    prevNestingRef.current = nestingResult;
+  }, [nestingResult, gcodeData]);
 
   // ── Import Modal State ───────────────────────────────────
   const [showImportModal, setShowImportModal] = useState(false);
@@ -460,6 +471,29 @@ export default function GcodeViewerPanel({
               settings={settings}
               fitTrigger={fitTrigger}
             />
+
+            {/* Stale G-code warning */}
+            {nestingDirty && (
+              <div
+                className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs shadow-2xl"
+                style={{
+                  backgroundColor: "rgba(251,191,36,0.12)",
+                  border: "1px solid rgba(251,191,36,0.4)",
+                  backdropFilter: "blur(12px)",
+                  color: "#fbbf24",
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                  <line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/>
+                </svg>
+                Nesting layout changed — regenerate G-code to update the 3D view
+                <button
+                  onClick={() => setNestingDirty(false)}
+                  style={{ opacity: 0.6, fontSize: 16, lineHeight: 1 }}
+                >×</button>
+              </div>
+            )}
 
             {/* Tool simulation scrubber */}
             {displayData && (

@@ -100,7 +100,7 @@ class DoorIn(BaseModel):
     w: float = Field(..., description="Width mm")
     h: float = Field(..., description="Height mm")
     qty: int = Field(1, description="Quantity")
-    type: str = Field("Shaker", description="Shaker | Shaker Step | Slab")
+    type: str = Field("Shaker", description="Shaker | Shaker Step | Slab | Grooved Slab | Beaded Shaker | Thin Rail Shaker")
     grain: str = Field("None", description="Horizontal | Vertical | None")
 
 
@@ -345,10 +345,16 @@ async def import_batch(
             d_type = "Shaker"
             if type_col and not pd.isna(row[type_col]):
                 t_val = str(row[type_col]).strip().title()
-                if t_val in ["Shaker", "Shaker Step", "Slab"]:
+                if t_val in ["Shaker", "Shaker Step", "Slab", "Grooved Slab", "Beaded Shaker", "Thin Rail Shaker"]:
                     d_type = t_val
                 elif "Step" in t_val:
                     d_type = "Shaker Step"
+                elif "Beaded" in t_val:
+                    d_type = "Beaded Shaker"
+                elif "Thin" in t_val:
+                    d_type = "Thin Rail Shaker"
+                elif "Groove" in t_val:
+                    d_type = "Grooved Slab"
                 elif "Slab" in t_val or "Flat" in t_val:
                     d_type = "Slab"
 
@@ -503,7 +509,7 @@ async def nest(request: Request):
         for plc in sht:
             w, h = plc["w"], plc["h"]
             total_length_mm += 2 * (w + h)
-            if plc.get("type", "Slab") in ["Shaker", "Shaker Step"]:
+            if plc.get("type", "Slab") in ["Shaker", "Shaker Step", "Beaded Shaker", "Thin Rail Shaker"]:
                 inner_w, inner_h = max(0, w - 2 * frame_w), max(0, h - 2 * frame_w)
                 total_length_mm += 2 * (inner_w + inner_h)
                 if s.get("do_pocket", True) and stepover > 0:

@@ -25,8 +25,6 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
   const [isLoading, setIsLoading] = useState("");
   const [error, setError] = useState(null);
   const [activeSection, setActiveSection] = useState("workflow");
-  const canvasRef = useRef(null);
-  const dragRef = useRef({ isDragging: false });
   const [editingPreviewPart, setEditingPreviewPart] = useState(null);
 
   // Add door form state
@@ -258,424 +256,35 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
     }
   }, [onGcodeGenerated, settings]);
 
-  const getDragTarget = useCallback((cx, cy) => {
-    if (!canvasRef.current || !settings || !nestingResult) return null;
-    const canvas = canvasRef.current;
-    const cw = canvas.parentElement.clientWidth - 8;
-    
-    let currentY = 28;
-
-    const dRef = dragRef.current;
-    let nw = dRef.rotated ? dRef.draggedPart.h : dRef.draggedPart.w;
-    let nh = dRef.rotated ? dRef.draggedPart.w : dRef.draggedPart.h;
-
-    for (let si = 0; si < nestingResult.sheets.length; si++) {
-      const meta = nestingResult.sheets_meta ? nestingResult.sheets_meta[si] : null;
-      const sw = meta ? meta.w : settings.sheet_w;
-      const sh = meta ? meta.h : settings.sheet_h;
-      
-      const thumbW = Math.min(cw - 16, 300);
-      const scale = thumbW / sw;
-      const thumbH = sh * scale;
-      
-      const xo = (cw - thumbW) / 2;
-      const yo = currentY;
-      
-      if (cx >= xo && cx <= xo + thumbW && cy >= yo && cy <= yo + thumbH) {
-        const x1 = cx - dRef.ox;
-        const y1 = cy - dRef.oy;
-        
-        const rawTx = (x1 - xo) / scale;
-        const rawTy = (yo + thumbH - y1) / scale - nh;
-        
-        return { 
-          targetSheetIndex: si, rawTx, rawTy, nw, nh, 
-          xo, yo, scale, thumbW, thumbH 
-        };
-      }
-      currentY += thumbH + 40;
-    }
-    return null;
-  }, [nestingResult, settings]);
-
-  const calculateSnap = useCallback((tx, ty, nw, nh, targetSheetIndex) => {
-    if (!nestingResult || targetSheetIndex < 0 || targetSheetIndex >= nestingResult.sheets.length) {
-      return { tx, ty };
-    }
-    const margin = settings.margin;
-    const kerf = settings.kerf;
-    const meta = nestingResult.sheets_meta ? nestingResult.sheets_meta[targetSheetIndex] : null;
-    const sw = meta ? meta.w : settings.sheet_w;
-    const sh = meta ? meta.h : settings.sheet_h;
-    const snapDist = 20;
-
-    let snapTx = tx;
-    let snapTy = ty;
-    
-    let closestXDist = snapDist;
-    let closestYDist = snapDist;
-
-    const trySnapX = (targetX) => {
-      const dist = Math.abs(tx - targetX);
-      if (dist < closestXDist) {
-        snapTx = targetX;
-        closestXDist = dist;
-      }
-    };
-
-    const trySnapY = (targetY) => {
-      const dist = Math.abs(ty - targetY);
-      if (dist < closestYDist) {
-        snapTy = targetY;
-        closestYDist = dist;
-      }
-    };
-
-    trySnapX(margin);
-    trySnapX(sw - margin - nw);
-    trySnapY(margin);
-    trySnapY(sh - margin - nh);
-
-    const sheet = nestingResult.sheets[targetSheetIndex];
-    const dRef = dragRef.current;
-    
-    for (let oi = 0; oi < sheet.length; oi++) {
-      if (targetSheetIndex === dRef.draggedOrigSheet && oi === dRef.draggedOrigIdx) continue;
-      
-      const other = sheet[oi];
-      const ow = other.rotated ? other.h : other.w;
-      const oh = other.rotated ? other.w : other.h;
-      
-      const overlapY = (ty < other.y + oh + snapDist) && (ty + nh > other.y - snapDist);
-      const overlapX = (tx < other.x + ow + snapDist) && (tx + nw > other.x - snapDist);
-
-      if (overlapY) {
-        trySnapX(other.x - nw - kerf);
-        trySnapX(other.x + ow + kerf);
-      }
-      
-      if (overlapX) {
-        trySnapY(other.y - nh - kerf);
-        trySnapY(other.y + oh + kerf);
-      }
-    }
-
-    return { tx: snapTx, ty: snapTy };
-  }, [nestingResult, settings]);
-
-  const drawCanvas = useCallback(() => {
-    if (!nestingResult || !canvasRef.current || !settings) return;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    const { sheets, sheets_meta } = nestingResult;
-    if (!sheets.length) return;
-
-    const dpr = window.devicePixelRatio || 1;
-    const cw = canvas.parentElement.clientWidth - 8;
-    
-    // First pass to compute metrics and total height
-    const metrics = sheets.map((_, si) => {
-      const meta = sheets_meta ? sheets_meta[si] : null;
-      const sw = meta ? meta.w : settings.sheet_w;
-      const sh = meta ? meta.h : settings.sheet_h;
-      const isOffcut = meta ? meta.is_offcut : false;
-      const thumbW = Math.min(cw - 16, 300);
-      const scale = thumbW / sw;
-      const thumbH = sh * scale;
-      return { sw, sh, isOffcut, thumbW, thumbH, scale };
-    });
-
-    let totalH = 16;
-    metrics.forEach(m => {
-      m.yo = totalH + 28 - 16; // offset padding
-      totalH += m.thumbH + 40;
-    });
-
-    if (canvas.width !== cw * dpr || canvas.height !== totalH * dpr) {
-      canvas.width = cw * dpr;
-      canvas.height = totalH * dpr;
-      canvas.style.width = cw + "px";
-      canvas.style.height = totalH + "px";
-      ctx.scale(dpr, dpr);
-    }
-    
-    ctx.clearRect(0, 0, cw, totalH);
-
-    const labelColor = isDark ? "#a1a1aa" : "#52525b";
-    const sheetBg = isDark ? "#1e293b" : "#e2e8f0";
-    const sheetStroke = isDark ? "#334155" : "#94a3b8";
-    const partLabelColor = isDark ? "#e2e8f0" : "#1e293b";
-
-    sheets.forEach((sheet, si) => {
-      const { sw, sh, isOffcut, thumbW, thumbH, scale, yo } = metrics[si];
-      const xo = (cw - thumbW) / 2;
-
-      ctx.font = "600 11px Inter, system-ui";
-      ctx.fillStyle = labelColor;
-      ctx.textAlign = "center";
-      const suffix = isOffcut ? " (Offcut)" : "";
-      ctx.fillText(`Sheet ${si + 1}${suffix}`, xo + thumbW / 2, yo - 8);
-
-      ctx.fillStyle = sheetBg;
-      ctx.strokeStyle = sheetStroke;
-      ctx.lineWidth = 1.5;
-      ctx.fillRect(xo, yo, thumbW, thumbH);
-      ctx.strokeRect(xo, yo, thumbW, thumbH);
-
-      const ms = settings.margin * scale;
-      ctx.strokeStyle = "#ef4444";
-      ctx.lineWidth = 0.5;
-      ctx.setLineDash([3, 3]);
-      ctx.strokeRect(xo + ms, yo + ms, thumbW - 2 * ms, thumbH - 2 * ms);
-      ctx.setLineDash([]);
-
-      const colors = {
-        "Shaker": "#3b82f6",
-        "Shaker Step": "#22c55e",
-        "Slab": "#f59e0b",
-      };
-      
-      sheet.forEach((d, j) => {
-        // Skip dragged part using sheet+index identity
-        if (dragRef.current.isDragging 
-            && si === dragRef.current.draggedOrigSheet 
-            && j === dragRef.current.draggedOrigIdx) return;
-
-        const x1 = xo + d.x * scale;
-        const y1 = yo + thumbH - (d.y + d.h) * scale;
-        const w = d.w * scale;
-        const h = d.h * scale;
-        const c = colors[d.type] || "#6366f1";
-        ctx.fillStyle = c + "25";
-        ctx.strokeStyle = c;
-        ctx.lineWidth = 1;
-        ctx.fillRect(x1, y1, w, h);
-        ctx.strokeRect(x1, y1, w, h);
-
-        if (w > 18 && h > 12) {
-          ctx.font = "bold 8px JetBrains Mono, monospace";
-          ctx.fillStyle = partLabelColor;
-          ctx.textAlign = "center";
-          ctx.fillText(`${d.id}`, x1 + w / 2, y1 + h / 2 + 3);
-        }
-      });
-    });
-
-    // Draw dragged part on top
-    if (dragRef.current.isDragging) {
-      const dRef = dragRef.current;
-      const targetObj = getDragTarget(dRef.cx, dRef.cy);
-      
-      let finalCanvasX = dRef.cx - dRef.ox;
-      let finalCanvasY = dRef.cy - dRef.oy;
-      
-      let nw = dRef.rotated ? dRef.draggedPart.h : dRef.draggedPart.w;
-      let nh = dRef.rotated ? dRef.draggedPart.w : dRef.draggedPart.h;
-      let scale = 1;
-
-      if (targetObj) {
-        const { targetSheetIndex, rawTx, rawTy, xo, yo, scale: s, thumbH } = targetObj;
-        scale = s;
-        nw = targetObj.nw;
-        nh = targetObj.nh;
-        
-        const snapped = calculateSnap(rawTx, rawTy, nw, nh, targetSheetIndex);
-        
-        finalCanvasX = xo + snapped.tx * scale;
-        finalCanvasY = yo + thumbH - (snapped.ty + nh) * scale;
-      } else {
-        const meta = nestingResult.sheets_meta ? nestingResult.sheets_meta[dRef.draggedOrigSheet] : null;
-        const sw = meta ? meta.w : settings.sheet_w;
-        scale = Math.min(cw - 16, 300) / sw;
-      }
-      
-      const boxW = nw * scale;
-      const boxH = nh * scale;
-
-      const c = "#ef4444"; // Highlight red while floating
-      ctx.fillStyle = c + "55";
-      ctx.strokeStyle = c;
-      ctx.lineWidth = 2;
-      ctx.fillRect(finalCanvasX, finalCanvasY, boxW, boxH);
-      ctx.strokeRect(finalCanvasX, finalCanvasY, boxW, boxH);
-      
-      ctx.font = "bold 8px JetBrains Mono, monospace";
-      ctx.fillStyle = "#fff";
-      ctx.textAlign = "center";
-      ctx.fillText(`${dRef.draggedPart.id}`, finalCanvasX + boxW / 2, finalCanvasY + boxH / 2 + 3);
-    }
-  }, [nestingResult, settings, isDark, getDragTarget, calculateSnap]);
-
+  // ── Listen for events from InteractiveSheetView ───────
   useEffect(() => {
-    drawCanvas();
-  }, [drawCanvas]);
-
-  // ── Drag & Drop events ──────────────────────────────
-  const handlePointerDown = (e) => {
-    if (!nestingResult || !canvasRef.current || !settings) return;
-    const canvas = canvasRef.current;
+    const handleEditEvent = (e) => {
+      const id = e.detail.id;
+      setDoors(currentDoors => {
+        const d = currentDoors.find(x => x.id === id);
+        if (d) setEditingPreviewPart({ ...d });
+        return currentDoors;
+      });
+    };
     
-    // Attempt focus to receive keydown
-    canvas.focus({ preventScroll: true });
+    const handleUpdateLayout = async (e) => {
+      const newSheets = e.detail.sheets;
+      setNestingResult(prev => {
+        if (!prev) return prev;
+        const newNesting = { ...prev, sheets: newSheets };
+        updateNestingResult(newNesting).catch(err => console.error("Failed to sync layout", err));
+        return newNesting;
+      });
+    };
 
-    const rect = canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
+    document.addEventListener('edit-door-part', handleEditEvent);
+    document.addEventListener('update-nesting-layout', handleUpdateLayout);
 
-    const cw = canvas.parentElement.clientWidth - 8;
-    let currentY = 28;
-
-    for (let si = 0; si < nestingResult.sheets.length; si++) {
-      const sheet = nestingResult.sheets[si];
-      const meta = nestingResult.sheets_meta ? nestingResult.sheets_meta[si] : null;
-      const sw = meta ? meta.w : settings.sheet_w;
-      const sh = meta ? meta.h : settings.sheet_h;
-      
-      const thumbW = Math.min(cw - 16, 300);
-      const scale = thumbW / sw;
-      const thumbH = sh * scale;
-      
-      const xo = (cw - thumbW) / 2;
-      const yo = currentY;
-
-      if (mx >= xo && mx <= xo + thumbW && my >= yo && my <= yo + thumbH) {
-        // Find part backwards so top part is picked first
-        for (let j = sheet.length - 1; j >= 0; j--) {
-          const d = sheet[j];
-          const x1 = xo + d.x * scale;
-          const y1 = yo + thumbH - (d.y + d.h) * scale;
-          const w = d.w * scale;
-          const h = d.h * scale;
-          
-          if (mx >= x1 && mx <= x1 + w && my >= y1 && my <= y1 + h) {
-            e.target.setPointerCapture(e.pointerId);
-            dragRef.current = {
-              isDragging: true,
-              draggedPart: d,
-              draggedOrigSheet: si,
-              draggedOrigIdx: j,  // store array index to uniquely identify this placement
-              cx: mx, cy: my,
-              ox: mx - x1, oy: my - y1,
-              rotated: false,
-              forcedRotate: false,
-              startMx: mx, startMy: my
-            };
-            drawCanvas();
-            return;
-          }
-        }
-      }
-      currentY += thumbH + 40;
-    }
-  };
-
-  const handlePointerMove = (e) => {
-    if (!dragRef.current.isDragging) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    dragRef.current.cx = e.clientX - rect.left;
-    dragRef.current.cy = e.clientY - rect.top;
-    drawCanvas();
-  };
-
-  const handlePointerUp = async (e) => {
-    if (!dragRef.current.isDragging) return;
-    e.target.releasePointerCapture(e.pointerId);
-    
-    const dRef = dragRef.current;
-    dRef.isDragging = false;
-
-    // Check if it was a tiny movement (Click)
-    const dist = Math.hypot(dRef.cx - dRef.startMx, dRef.cy - dRef.startMy);
-    if (dist < 3 && !dRef.forcedRotate) {
-      const originalDoor = doors.find(door => door.id === dRef.draggedPart.id);
-      if (originalDoor) {
-        setEditingPreviewPart({ ...originalDoor });
-      }
-      drawCanvas();
-      return;
-    }
-
-    // Process Drop
-    const sw = settings.sheet_w;
-    const sh = settings.sheet_h;
-    
-    let targetSheetIndex = -1;
-    let tx = 0; let ty = 0;
-    let nw = dRef.rotated ? dRef.draggedPart.h : dRef.draggedPart.w;
-    let nh = dRef.rotated ? dRef.draggedPart.w : dRef.draggedPart.h;
-
-    const targetObj = getDragTarget(dRef.cx, dRef.cy);
-    if (targetObj) {
-      targetSheetIndex = targetObj.targetSheetIndex;
-      nw = targetObj.nw;
-      nh = targetObj.nh;
-      const snapped = calculateSnap(targetObj.rawTx, targetObj.rawTy, nw, nh, targetSheetIndex);
-      tx = snapped.tx;
-      ty = snapped.ty;
-    }
-
-    if (targetSheetIndex !== -1) {
-      const meta = nestingResult.sheets_meta ? nestingResult.sheets_meta[targetSheetIndex] : null;
-      const tgt_sw = meta ? meta.w : settings.sheet_w;
-      const tgt_sh = meta ? meta.h : settings.sheet_h;
-      
-      const margin = settings.margin;
-      const kerf = settings.kerf;
-      let collision = false;
-
-      if (tx < margin - 0.1 || ty < margin - 0.1 || tx + nw > tgt_sw - margin + 0.1 || ty + nh > tgt_sh - margin + 0.1) {
-        collision = true;
-      }
-
-      if (!collision) {
-        const sheet = nestingResult.sheets[targetSheetIndex];
-        for (let oi = 0; oi < sheet.length; oi++) {
-          const other = sheet[oi];
-          if (oi === dRef.draggedOrigIdx && targetSheetIndex === dRef.draggedOrigSheet) continue;
-          
-          if (tx < other.x + other.w + kerf - 0.1 && tx + nw + kerf > other.x + 0.1 &&
-              ty < other.y + other.h + kerf - 0.1 && ty + nh + kerf > other.y + 0.1) {
-             collision = true;
-             break;
-          }
-        }
-      }
-
-      if (!collision) {
-        const newSheets = nestingResult.sheets.map(s => [...s]);
-        
-        newSheets[dRef.draggedOrigSheet] = newSheets[dRef.draggedOrigSheet].filter((_, idx) => idx !== dRef.draggedOrigIdx);
-        
-        newSheets[targetSheetIndex].push({
-          ...dRef.draggedPart,
-          x: tx, y: ty, w: nw, h: nh,
-          rotated: false
-        });
-
-        const newNesting = { ...nestingResult, sheets: newSheets };
-        setNestingResult(newNesting);
-        try {
-          await updateNestingResult(newNesting);
-        } catch (e) {
-          setError("Failed to sync layout to backend: " + e.message);
-        }
-        return;
-      }
-    }
-
-    // Invalid drop
-    drawCanvas();
-  };
-
-  const handleCanvasKeyDown = (e) => {
-    if (e.key === 'r' || e.key === 'R') {
-      if (dragRef.current.isDragging) {
-         dragRef.current.rotated = !dragRef.current.rotated;
-         dragRef.current.forcedRotate = true;
-         drawCanvas();
-      }
-    }
-  };
+    return () => {
+      document.removeEventListener('edit-door-part', handleEditEvent);
+      document.removeEventListener('update-nesting-layout', handleUpdateLayout);
+    };
+  }, []);
 
   if (!settings) {
     return (
@@ -686,9 +295,12 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
   }
 
   const typeColors = {
-    "Shaker": { text: "#3b82f6", border: "rgba(59,130,246,0.25)", bg: "rgba(59,130,246,0.08)" },
-    "Shaker Step": { text: "#00D68F", border: "rgba(0,214,143,0.25)", bg: "rgba(0,214,143,0.08)" },
-    "Slab": { text: "#FF8C00", border: "rgba(255,140,0,0.25)", bg: "rgba(255,140,0,0.08)" }
+    "Shaker":           { text: "#60A5FA", border: "rgba(96,165,250,0.3)",  bg: "rgba(96,165,250,0.08)" },
+    "Shaker Step":      { text: "#84CC16", border: "rgba(132,204,22,0.3)", bg: "rgba(132,204,22,0.08)" },
+    "Slab":             { text: "#F97316", border: "rgba(249,115,22,0.3)", bg: "rgba(249,115,22,0.08)" },
+    "Grooved Slab":     { text: "#14B8A6", border: "rgba(20,184,166,0.3)", bg: "rgba(20,184,166,0.08)" },
+    "Beaded Shaker":    { text: "#A855F7", border: "rgba(168,85,247,0.3)", bg: "rgba(168,85,247,0.08)" },
+    "Thin Rail Shaker": { text: "#F43F5E", border: "rgba(244,63,94,0.3)",  bg: "rgba(244,63,94,0.08)" },
   };
 
   // ═══════════════════════════════════════════════════════
@@ -828,6 +440,9 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
                     <option value="Shaker">Shaker</option>
                     <option value="Shaker Step">Shaker Step</option>
                     <option value="Slab">Slab</option>
+                    <option value="Grooved Slab">Grooved Slab</option>
+                    <option value="Beaded Shaker">Beaded Shaker</option>
+                    <option value="Thin Rail Shaker">Thin Rail Shaker</option>
                   </select>
                 </div>
               </div>
@@ -839,33 +454,62 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
                      style={{ backgroundColor: "var(--ss-bg)", border: `1px solid ${typeColors[newDoor.type]?.border || 'var(--ss-border)'}` }}>
                   {newDoor.type === "Shaker" && (
                     <svg width="80" height="56" viewBox="0 0 80 56" fill="none">
-                      <rect x="4" y="4" width="72" height="48" rx="2" stroke="#3b82f6" strokeWidth="1.5" strokeOpacity="0.6"/>
-                      <rect x="14" y="12" width="52" height="32" rx="1" stroke="#3b82f6" strokeWidth="1" fill="#3b82f6" fillOpacity="0.05"/>
-                      <line x1="14" y1="12" x2="4" y2="4" stroke="#3b82f6" strokeWidth="0.5" strokeOpacity="0.3"/>
-                      <line x1="66" y1="12" x2="76" y2="4" stroke="#3b82f6" strokeWidth="0.5" strokeOpacity="0.3"/>
-                      <line x1="14" y1="44" x2="4" y2="52" stroke="#3b82f6" strokeWidth="0.5" strokeOpacity="0.3"/>
-                      <line x1="66" y1="44" x2="76" y2="52" stroke="#3b82f6" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <rect x="4" y="4" width="72" height="48" rx="2" stroke="#60A5FA" strokeWidth="1.5" strokeOpacity="0.6"/>
+                      <rect x="14" y="12" width="52" height="32" rx="1" stroke="#60A5FA" strokeWidth="1" fill="#60A5FA" fillOpacity="0.05"/>
+                      <line x1="14" y1="12" x2="4" y2="4" stroke="#60A5FA" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="66" y1="12" x2="76" y2="4" stroke="#60A5FA" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="14" y1="44" x2="4" y2="52" stroke="#60A5FA" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="66" y1="44" x2="76" y2="52" stroke="#60A5FA" strokeWidth="0.5" strokeOpacity="0.3"/>
                     </svg>
                   )}
                   {newDoor.type === "Shaker Step" && (
                     <svg width="80" height="56" viewBox="0 0 80 56" fill="none">
-                      <rect x="4" y="4" width="72" height="48" rx="2" stroke="#00D68F" strokeWidth="1.5" strokeOpacity="0.6"/>
-                      <rect x="14" y="12" width="52" height="32" rx="1" stroke="#00D68F" strokeWidth="1" fill="#00D68F" fillOpacity="0.05"/>
-                      <rect x="20" y="17" width="40" height="22" rx="1" stroke="#00D68F" strokeWidth="0.8" strokeDasharray="2 1" strokeOpacity="0.4"/>
-                      <line x1="14" y1="12" x2="4" y2="4" stroke="#00D68F" strokeWidth="0.5" strokeOpacity="0.3"/>
-                      <line x1="66" y1="12" x2="76" y2="4" stroke="#00D68F" strokeWidth="0.5" strokeOpacity="0.3"/>
-                      <line x1="14" y1="44" x2="4" y2="52" stroke="#00D68F" strokeWidth="0.5" strokeOpacity="0.3"/>
-                      <line x1="66" y1="44" x2="76" y2="52" stroke="#00D68F" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <rect x="4" y="4" width="72" height="48" rx="2" stroke="#84CC16" strokeWidth="1.5" strokeOpacity="0.6"/>
+                      <rect x="14" y="12" width="52" height="32" rx="1" stroke="#84CC16" strokeWidth="1" fill="#84CC16" fillOpacity="0.05"/>
+                      <rect x="20" y="17" width="40" height="22" rx="1" stroke="#84CC16" strokeWidth="0.8" strokeDasharray="2 1" strokeOpacity="0.4"/>
+                      <line x1="14" y1="12" x2="4" y2="4" stroke="#84CC16" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="66" y1="12" x2="76" y2="4" stroke="#84CC16" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="14" y1="44" x2="4" y2="52" stroke="#84CC16" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="66" y1="44" x2="76" y2="52" stroke="#84CC16" strokeWidth="0.5" strokeOpacity="0.3"/>
                     </svg>
                   )}
                   {newDoor.type === "Slab" && (
                     <svg width="80" height="56" viewBox="0 0 80 56" fill="none">
-                      <rect x="4" y="4" width="72" height="48" rx="1" stroke="#FF8C00" strokeWidth="1.5" strokeOpacity="0.6" fill="#FF8C00" fillOpacity="0.03"/>
-                      <line x1="4" y1="4" x2="8" y2="8" stroke="#FF8C00" strokeWidth="0.5" strokeOpacity="0.25"/>
-                      <line x1="76" y1="4" x2="72" y2="8" stroke="#FF8C00" strokeWidth="0.5" strokeOpacity="0.25"/>
-                      <line x1="4" y1="52" x2="8" y2="48" stroke="#FF8C00" strokeWidth="0.5" strokeOpacity="0.25"/>
-                      <line x1="76" y1="52" x2="72" y2="48" stroke="#FF8C00" strokeWidth="0.5" strokeOpacity="0.25"/>
-                      <text x="40" y="30" textAnchor="middle" fill="#FF8C00" fillOpacity="0.3" fontSize="8" fontFamily="monospace">FLAT</text>
+                      <rect x="4" y="4" width="72" height="48" rx="1" stroke="#F97316" strokeWidth="1.5" strokeOpacity="0.6" fill="#F97316" fillOpacity="0.03"/>
+                      <line x1="4" y1="4" x2="8" y2="8" stroke="#F97316" strokeWidth="0.5" strokeOpacity="0.25"/>
+                      <line x1="76" y1="4" x2="72" y2="8" stroke="#F97316" strokeWidth="0.5" strokeOpacity="0.25"/>
+                      <line x1="4" y1="52" x2="8" y2="48" stroke="#F97316" strokeWidth="0.5" strokeOpacity="0.25"/>
+                      <line x1="76" y1="52" x2="72" y2="48" stroke="#F97316" strokeWidth="0.5" strokeOpacity="0.25"/>
+                      <text x="40" y="30" textAnchor="middle" fill="#F97316" fillOpacity="0.3" fontSize="8" fontFamily="monospace">FLAT</text>
+                    </svg>
+                  )}
+                  {newDoor.type === "Grooved Slab" && (
+                    <svg width="80" height="56" viewBox="0 0 80 56" fill="none">
+                      <rect x="4" y="4" width="72" height="48" rx="1" stroke="#14B8A6" strokeWidth="1.5" strokeOpacity="0.6" fill="#14B8A6" fillOpacity="0.03"/>
+                      <line x1="28" y1="4" x2="28" y2="52" stroke="#14B8A6" strokeWidth="0.8" strokeDasharray="2 1" strokeOpacity="0.5"/>
+                      <line x1="40" y1="4" x2="40" y2="52" stroke="#14B8A6" strokeWidth="0.8" strokeDasharray="2 1" strokeOpacity="0.5"/>
+                      <line x1="52" y1="4" x2="52" y2="52" stroke="#14B8A6" strokeWidth="0.8" strokeDasharray="2 1" strokeOpacity="0.5"/>
+                    </svg>
+                  )}
+                  {newDoor.type === "Beaded Shaker" && (
+                    <svg width="80" height="56" viewBox="0 0 80 56" fill="none">
+                      <rect x="4" y="4" width="72" height="48" rx="2" stroke="#A855F7" strokeWidth="1.5" strokeOpacity="0.6"/>
+                      <rect x="14" y="12" width="52" height="32" rx="1" stroke="#A855F7" strokeWidth="1.5" strokeOpacity="0.8"/>
+                      <rect x="16" y="14" width="48" height="28" rx="0.5" stroke="#A855F7" strokeWidth="0.5" strokeOpacity="0.4" fill="#A855F7" fillOpacity="0.05"/>
+                      <line x1="14" y1="12" x2="4" y2="4" stroke="#A855F7" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="66" y1="12" x2="76" y2="4" stroke="#A855F7" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="14" y1="44" x2="4" y2="52" stroke="#A855F7" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="66" y1="44" x2="76" y2="52" stroke="#A855F7" strokeWidth="0.5" strokeOpacity="0.3"/>
+                    </svg>
+                  )}
+                  {newDoor.type === "Thin Rail Shaker" && (
+                    <svg width="80" height="56" viewBox="0 0 80 56" fill="none">
+                      <rect x="4" y="4" width="72" height="48" rx="2" stroke="#F43F5E" strokeWidth="1.5" strokeOpacity="0.6"/>
+                      <rect x="10" y="9" width="60" height="38" rx="1" stroke="#F43F5E" strokeWidth="1" fill="#F43F5E" fillOpacity="0.05"/>
+                      <line x1="10" y1="9" x2="4" y2="4" stroke="#F43F5E" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="70" y1="9" x2="76" y2="4" stroke="#F43F5E" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="10" y1="47" x2="4" y2="52" stroke="#F43F5E" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="70" y1="47" x2="76" y2="52" stroke="#F43F5E" strokeWidth="0.5" strokeOpacity="0.3"/>
                     </svg>
                   )}
                 </div>
@@ -875,6 +519,9 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
                     {newDoor.type === "Shaker" && "Classic frame-and-panel facade. A pocket is milled around the inner panel perimeter, creating a clean raised step."}
                     {newDoor.type === "Shaker Step" && "Two-step facade. An additional inner contour adds depth, requiring two milling passes for a layered profile."}
                     {newDoor.type === "Slab" && "Flat facade with no frame or panel. Contour cut only, no pocket milling. Minimal machining time."}
+                    {newDoor.type === "Grooved Slab" && "Slab with routed vertical/horizontal grooves. Very trendy in modern kitchens, simple to machine."}
+                    {newDoor.type === "Beaded Shaker" && "Existing Shaker + a bead detail routed on the inner frame edge. Popular in traditional/farmhouse styles."}
+                    {newDoor.type === "Thin Rail Shaker" && "Same as Shaker but with narrower stiles/rails. Huge in Scandinavian and contemporary design."}
                   </p>
                 </div>
               </div>
@@ -1169,28 +816,7 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
               </section>
             )}
 
-            {/* Nesting preview */}
-            {nestingResult && (
-              <section className="space-y-2 animate-fade-in">
-                <h3 className="text-xs font-semibold uppercase tracking-wider pb-1"
-                    style={{ color: "var(--ss-text-muted)", borderBottom: "1px solid var(--ss-border)" }}>
-                  Nesting Preview
-                </h3>
-                <div className="rounded-lg overflow-hidden flex flex-col items-center" style={{ border: "1px solid var(--ss-border)", backgroundColor: "var(--ss-bg)" }}>
-                  <canvas 
-                    ref={canvasRef} 
-                    id="nesting-canvas" 
-                    onPointerDown={handlePointerDown}
-                    onPointerMove={handlePointerMove}
-                    onPointerUp={handlePointerUp}
-                    onKeyDown={handleCanvasKeyDown}
-                    tabIndex={0}
-                    className="cursor-pointer outline-none" 
-                  />
-                  <p className="text-[10px] text-center w-full py-1 opacity-50 block">Drag & Drop to move parts. Press 'R' while dragging to rotate.</p>
-                </div>
-              </section>
-            )}
+
           </div>
         )}
 
@@ -1466,9 +1092,12 @@ function CheckField({ label, checked, onChange, disabled }) {
 }
 
 const typeColors = {
-  "Shaker": { bg: "rgba(59, 130, 246, 0.15)", border: "#3b82f6", text: "#60a5fa" },
-  "Shaker Step": { bg: "rgba(34, 197, 94, 0.15)", border: "#22c55e", text: "#4ade80" },
-  "Slab": { bg: "rgba(245, 158, 11, 0.15)", border: "#f59e0b", text: "#fbbf24" }
+  "Shaker":           { bg: "rgba(96,165,250,0.15)",  border: "#60A5FA", text: "#93C5FD" },
+  "Shaker Step":      { bg: "rgba(132,204,22,0.15)",  border: "#84CC16", text: "#BEF264" },
+  "Slab":             { bg: "rgba(249,115,22,0.15)",  border: "#F97316", text: "#FB923C" },
+  "Grooved Slab":     { bg: "rgba(20,184,166,0.15)",  border: "#14B8A6", text: "#2DD4BF" },
+  "Beaded Shaker":    { bg: "rgba(168,85,247,0.15)",  border: "#A855F7", text: "#C084FC" },
+  "Thin Rail Shaker": { bg: "rgba(244,63,94,0.15)",   border: "#F43F5E", text: "#FB7185" },
 };
 
 function EditPreviewDoorModal({ part, onSave, onCancel, toDisplay, fromDisplay, unitLabel }) {

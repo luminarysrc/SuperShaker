@@ -588,6 +588,7 @@ def generate_gcode_for_sheet(
     t2_tool_t="T2", t2_spindle=18000, t2_feed=6000,
     t3_tool_t="T3", t3_spindle=18000, t3_feed=8000,
     t5_tool_t="T5", t5_spindle=18000, t5_feed=8000,
+    t7_tool_t="T7", t7_spindle=18000, t7_feed=6000,
     # Order
     order_id="",
 ):
@@ -635,12 +636,13 @@ def generate_gcode_for_sheet(
         cl.append(f"S{t6_spindle} M3")
         cl.append("")
 
-        shaker_doors = [d for d in sheet_doors if d['type'] in ('Shaker', 'Shaker Step')]
+        shaker_doors = [d for d in sheet_doors if d['type'] in ('Shaker', 'Shaker Step', 'Beaded Shaker', 'Thin Rail Shaker')]
         for d in optimize_path(shaker_doors, curr_x, curr_y):
-            px_min = d['x'] + frame_w
-            px_max = d['x'] + d['w'] - frame_w
-            py_min = d['y'] + frame_w
-            py_max = d['y'] + d['h'] - frame_w
+            local_frame_w = 45.0 if d['type'] == 'Thin Rail Shaker' else frame_w
+            px_min = d['x'] + local_frame_w
+            px_max = d['x'] + d['w'] - local_frame_w
+            py_min = d['y'] + local_frame_w
+            py_max = d['y'] + d['h'] - local_frame_w
             cx_min = px_min + t6_r
             cx_max = px_max - t6_r
             cy_min = py_min + t6_r
@@ -834,12 +836,13 @@ def generate_gcode_for_sheet(
             off -= t2_d
         offsets_t2.append(t2_r)
 
-        shaker_doors = [d for d in sheet_doors if d['type'] in ('Shaker', 'Shaker Step')]
+        shaker_doors = [d for d in sheet_doors if d['type'] in ('Shaker', 'Shaker Step', 'Beaded Shaker', 'Thin Rail Shaker')]
         for d in optimize_path(shaker_doors, curr_x, curr_y):
-            px_min = d['x'] + frame_w
-            px_max = d['x'] + d['w'] - frame_w
-            py_min = d['y'] + frame_w
-            py_max = d['y'] + d['h'] - frame_w
+            local_frame_w = 45.0 if d['type'] == 'Thin Rail Shaker' else frame_w
+            px_min = d['x'] + local_frame_w
+            px_max = d['x'] + d['w'] - local_frame_w
+            py_min = d['y'] + local_frame_w
+            py_max = d['y'] + d['h'] - local_frame_w
             if (px_max - px_min) < 2 * t2_r or (py_max - py_min) < 2 * t2_r:
                 continue
 
@@ -922,16 +925,17 @@ def generate_gcode_for_sheet(
         cl.append(f"S{t5_spindle} M3")
         cl.append("")
         for d in optimize_path(sheet_doors, curr_x, curr_y):
-            px_min = d['x'] + frame_w
-            px_max = d['x'] + d['w'] - frame_w
-            py_min = d['y'] + frame_w
-            py_max = d['y'] + d['h'] - frame_w
+            local_frame_w = 45.0 if d['type'] == 'Thin Rail Shaker' else frame_w
+            px_min = d['x'] + local_frame_w
+            px_max = d['x'] + d['w'] - local_frame_w
+            py_min = d['y'] + local_frame_w
+            py_max = d['y'] + d['h'] - local_frame_w
             ox_min = d['x']
             ox_max = d['x'] + d['w']
             oy_min = d['y']
             oy_max = d['y'] + d['h']
             t5_buf = []
-            if d['type'] in ('Shaker', 'Shaker Step'):
+            if d['type'] in ('Shaker', 'Shaker Step', 'Thin Rail Shaker', 'Beaded Shaker'):
                 if do_french_miter or _do_inner:
                     _z_cham1 = z_chamfer if _do_inner else z_top
                     curr_x, curr_y = _combined_miter_chamfer(
@@ -940,6 +944,24 @@ def generate_gcode_for_sheet(
                         depth=pocket_depth, z_safe=z_safe,
                         feed_cut=4000, feed_plunge=1000,
                         cx=curr_x, cy=curr_y)
+            elif d['type'] == 'Grooved Slab':
+                # Generate vertical grooves with T5
+                t5_buf.append(f"(TYPE: Grooved Slab | T5 GROOVES ID {d['id']})")
+                num_grooves = int(d['w'] / 100.0)
+                if num_grooves > 0:
+                    spacing = d['w'] / (num_grooves + 1)
+                    groove_margin_y = 50.0  # safe margin from top/bottom edges
+                    z_groove = z_top - 3.0  # plunge 3mm
+                    g_start_y = oy_min + groove_margin_y
+                    g_end_y = oy_max - groove_margin_y
+                    if g_end_y > g_start_y:
+                        t5_buf.append(f"G0 Z{z_safe}")
+                        for i in range(1, num_grooves + 1):
+                            gx = ox_min + i * spacing
+                            t5_buf.append(f"G0 X{gx:.3f} Y{g_start_y:.3f}")
+                            t5_buf.append(f"G1 Z{z_groove:.3f} F1000")
+                            t5_buf.append(f"G1 Y{g_end_y:.3f} F4000")
+                            t5_buf.append(f"G0 Z{z_safe}")
             if _do_outer:
                 t5_buf.append(f"(TYPE: {d['type']} | T5 OUTER CHAMFER ID {d['id']})")
                 t5_buf.append(f"G0 X{ox_min:.3f} Y{oy_min + out_r:.3f} Z{z_top + 5}")
@@ -959,6 +981,31 @@ def generate_gcode_for_sheet(
             curr_x, curr_y = d['x'] + d['w'] / 2, d['y'] + d['h'] / 2
         cl.append("")
 
+    # ── OP3.5: BEAD DETAIL T7 ──────────────────────────────────────
+    beaded_doors = [d for d in sheet_doors if d['type'] == 'Beaded Shaker']
+    if beaded_doors:
+        cl.append("(--- OP3.5: BEAD DETAIL T7 ---)")
+        cl.append(f"{t7_tool_t} M6")
+        cl.append(f"S{t7_spindle} M3")
+        cl.append("")
+        for d in optimize_path(beaded_doors, curr_x, curr_y):
+            local_frame_w = frame_w # Beaded Shaker uses standard frame_w
+            px_min = d['x'] + local_frame_w
+            px_max = d['x'] + d['w'] - local_frame_w
+            py_min = d['y'] + local_frame_w
+            py_max = d['y'] + d['h'] - local_frame_w
+            if px_max > px_min and py_max > py_min:
+                z_bead = z_top - 4.0 # default 4mm plunge for bead
+                cl.append(f"(TYPE: Beaded Shaker | T7 BEAD ID {d['id']})")
+                cl.append(f"G0 X{px_min:.3f} Y{py_min:.3f} Z{z_top + 5.0}")
+                cl.append(f"G1 Z{z_bead:.3f} F1000")
+                cl.append(f"G1 X{px_max:.3f} F{t7_feed}")
+                cl.append(f"G1 Y{py_max:.3f}")
+                cl.append(f"G1 X{px_min:.3f}")
+                cl.append(f"G1 Y{py_min:.3f}")
+                cl.append(f"G0 Z{z_safe}")
+            curr_x, curr_y = d['x'] + d['w'] / 2, d['y'] + d['h'] / 2
+        cl.append("")
     # ── OP4: CUTOUT T3 ─────────────────────────────────────────────
     if do_cutout:
         if common_line:
