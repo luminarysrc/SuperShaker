@@ -14,6 +14,7 @@ Originally developed as a standalone Python Tkinter application, SuperShaker has
   - **Magnetic Snapping**: Intelligent alignment to sheet margins and adjacent parts (accounting for kerf).
   - **Manual Rotation**: Use the `R` key during drag to toggle part orientation.
   - **Collision Prevention**: Built-in validation ensures parts never overlap or exceed sheet boundaries.
+- **Automated Offcut Generation**: Automatically identifies large continuous unused areas on nested sheets and suggests them as reusable offcuts (minimum 200x200mm). Suggested offcuts can be saved to the inventory for material optimization in future jobs.
 - **Parametric G-Code Generation**: Dynamically writes CNC `.gcode` instructions without relying on external CAM software (like VCarve or ArtCAM). Features fully supported toolpath logic for:
   - Internal pocketing (Snake/Spiral/Climb strategies)
   - Secondary step-pockets (`Shaker Step` design)
@@ -113,8 +114,9 @@ To start the full prototype locally (both frontend and backend simultaneously), 
 6. **Batch Import (Optional)**: Click the **Excel Import** icon in the Right Panel's toolbar or simply **Drag and Drop** an `.xlsx` or `.csv` file anywhere onto the 3D Viewer. The system will automatically parse the file and add the parts to your list.
 7. **Export PDF Labels**: Click `Export PDF Labels` to automatically generate Avery-style barcode labels.
 8. **Run Nesting & Adjust**: Click `Run Nesting` to view a 2D thumbnail preview. You can **Drag and Drop** parts to fine-tune their positions or **type 'R'** while dragging to rotate a part. Magnetic snapping will help you align parts perfectly.
-9. **Generate G-Code**: Click `Generate G-code` once you are satisfied with the layout. The mathematical engine will formulate thousands of G-code lines in milliseconds and pass them to the 3D Viewer on the right panel.
-10. **Export**: Click the download icon in the top right of the viewer to download your ready-to-cut `.nc` G-code file.
+9. **Save Generated Offcuts**: Review the suggested offcut areas (green dashed boxes) on the 2D map, and click `Save All to Inventory` in the left panel to save these material scraps for future jobs.
+10. **Generate G-Code**: Click `Generate G-code` once you are satisfied with the layout. The mathematical engine will formulate thousands of G-code lines in milliseconds and pass them to the 3D Viewer on the right panel. Any manual adjustments made in the 2D sheet map are instantly synchronized to the 3D viewer.
+11. **Export**: Click the download icon in the top right of the viewer to download your ready-to-cut `.nc` G-code file.
 
 ---
 

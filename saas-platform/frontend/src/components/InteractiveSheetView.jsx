@@ -7,13 +7,13 @@ import React, { useState, useRef, useCallback, useEffect } from "react";
 import { updateNestingResult } from "../services/EngineClient.js";
 
 const TYPE_STYLE = {
-  "Shaker":           { fill: "rgba(96,165,250,0.18)",  stroke: "#60A5FA", label: "#93C5FD" },
-  "Shaker Step":      { fill: "rgba(132,204,22,0.15)",  stroke: "#84CC16", label: "#BEF264" },
-  "Slab":             { fill: "rgba(249,115,22,0.14)",  stroke: "#F97316", label: "#FB923C" },
-  "Grooved Slab":     { fill: "rgba(20,184,166,0.14)",  stroke: "#14B8A6", label: "#2DD4BF" },
-  "Beaded Shaker":    { fill: "rgba(168,85,247,0.14)",  stroke: "#A855F7", label: "#C084FC" },
-  "Thin Rail Shaker": { fill: "rgba(244,63,94,0.14)",   stroke: "#F43F5E", label: "#FB7185" },
-  default:            { fill: "rgba(143,155,179,0.14)", stroke: "#8F9BB3", label: "#8F9BB3" },
+  "Shaker": { fill: "rgba(96,165,250,0.18)", stroke: "#60A5FA", label: "#93C5FD" },
+  "Shaker Step": { fill: "rgba(132,204,22,0.15)", stroke: "#84CC16", label: "#BEF264" },
+  "Slab": { fill: "rgba(249,115,22,0.14)", stroke: "#F97316", label: "#FB923C" },
+  "Grooved Slab": { fill: "rgba(20,184,166,0.14)", stroke: "#14B8A6", label: "#2DD4BF" },
+  "Beaded Shaker": { fill: "rgba(168,85,247,0.14)", stroke: "#A855F7", label: "#C084FC" },
+  "Thin Rail Shaker": { fill: "rgba(244,63,94,0.14)", stroke: "#F43F5E", label: "#FB7185" },
+  default: { fill: "rgba(143,155,179,0.14)", stroke: "#8F9BB3", label: "#8F9BB3" },
 };
 
 const SELECTED_STYLE = { fill: "rgba(108,99,255,0.18)", stroke: "#6C63FF", label: "#A5A0FF" };
@@ -50,12 +50,12 @@ function PartDetailPanel({ part, onClose, onEdit }) {
       </div>
       <div className="grid grid-cols-2 gap-2 mb-3">
         {[
-          { label: "Width",  value: `${part.orig_w} mm` },
+          { label: "Width", value: `${part.orig_w} mm` },
           { label: "Height", value: `${part.orig_h} mm` },
-          { label: "Area",   value: `${area} m²` },
+          { label: "Area", value: `${area} m²` },
           { label: "Orient", value: rotated ? "Rotated" : "Normal" },
-          { label: "Pos X",  value: `${part.x.toFixed(1)} mm` },
-          { label: "Pos Y",  value: `${part.y.toFixed(1)} mm` },
+          { label: "Pos X", value: `${part.x.toFixed(1)} mm` },
+          { label: "Pos Y", value: `${part.y.toFixed(1)} mm` },
         ].map(({ label, value }) => (
           <div key={label} className="rounded-lg p-2" style={{ backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
             <p className="text-[9px] uppercase tracking-widest mb-0.5" style={{ color: "var(--ss-text-muted)" }}>{label}</p>
@@ -127,10 +127,10 @@ export default function InteractiveSheetView({ nestingResult }) {
   // Ghost position for rendering — this is React state so it re-renders
   const [ghost, setGhost] = useState(null);
 
-  const sheets     = localSheets || nestingResult?.sheets || [];
+  const sheets = localSheets || nestingResult?.sheets || [];
   const sheetsMeta = nestingResult?.sheets_meta || [];
-  const sheet      = sheets[activeSheet] || [];
-  const meta       = { ...(sheetsMeta[activeSheet] || {}), margin: 10 };
+  const sheet = sheets[activeSheet] || [];
+  const meta = { ...(sheetsMeta[activeSheet] || {}), margin: 10 };
   const selectedPart = selectedId != null ? sheet.find(p => p.id === selectedId) : null;
 
   // ── Geometry helpers (derived from current containerSize + meta) ──
@@ -140,14 +140,14 @@ export default function InteractiveSheetView({ nestingResult }) {
     const sh = meta.h || 1250;
     const availW = containerSize.w - PADDING * 2;
     const availH = containerSize.h - PADDING * 2;
-    const scale  = Math.min(availW / sw, availH / sh);
-    const drawW  = sw * scale;
-    const drawH  = sh * scale;
-    const ox     = (containerSize.w - drawW) / 2;
-    const oy     = (containerSize.h - drawH) / 2;
-    const toX    = v => ox + v * scale;
-    const toY    = v => oy + (sh - v) * scale;
-    const toLen  = v => v * scale;
+    const scale = Math.min(availW / sw, availH / sh);
+    const drawW = sw * scale;
+    const drawH = sh * scale;
+    const ox = (containerSize.w - drawW) / 2;
+    const oy = (containerSize.h - drawH) / 2;
+    const toX = v => ox + v * scale;
+    const toY = v => oy + (sh - v) * scale;
+    const toLen = v => v * scale;
     const fromSvgX = svgX => (svgX - ox) / scale;
     const fromSvgY = svgY => sh - (svgY - oy) / scale;
     return { sw, sh, scale, drawW, drawH, ox, oy, toX, toY, toLen, fromSvgX, fromSvgY };
@@ -156,10 +156,10 @@ export default function InteractiveSheetView({ nestingResult }) {
   // ── Snap ──────────────────────────────────────────────────────────
   const calculateSnap = useCallback((tx, ty, nw, nh, ignoreIdx) => {
     const settings = JSON.parse(localStorage.getItem("ss_settings") || "{}");
-    const margin   = settings.margin || meta.margin || 10;
-    const kerf     = settings.kerf   || 5;
-    const sw       = meta.w || settings.sheet_w || 2500;
-    const sh       = meta.h || settings.sheet_h || 1250;
+    const margin = settings.margin || meta.margin || 10;
+    const kerf = settings.kerf || 5;
+    const sw = meta.w || settings.sheet_w || 2500;
+    const sh = meta.h || settings.sheet_h || 1250;
     const snapDist = 20;
     let snapTx = tx, snapTy = ty, dX = snapDist, dY = snapDist;
 
@@ -171,7 +171,7 @@ export default function InteractiveSheetView({ nestingResult }) {
 
     for (let i = 0; i < sheet.length; i++) {
       if (i === ignoreIdx) continue;
-      const o  = sheet[i];
+      const o = sheet[i];
       const ow = o.rotated ? o.h : o.w;
       const oh = o.rotated ? o.w : o.h;
       if (ty < o.y + oh + snapDist && ty + nh > o.y - snapDist) { tryX(o.x - nw - kerf); tryX(o.x + ow + kerf); }
@@ -248,17 +248,17 @@ export default function InteractiveSheetView({ nestingResult }) {
       // Bounds check
       const settings = JSON.parse(localStorage.getItem("ss_settings") || "{}");
       const margin = settings.margin || meta.margin || 10;
-      const kerf   = settings.kerf   || 5;
+      const kerf = settings.kerf || 5;
       if (tx < margin - 0.1 || ty < margin - 0.1 || tx + nw > sw - margin + 0.1 || ty + nh > sh - margin + 0.1) return;
 
       // Collision check
       for (let oi = 0; oi < sheet.length; oi++) {
         if (oi === d.idx) continue;
-        const o  = sheet[oi];
+        const o = sheet[oi];
         const ow = o.rotated ? o.h : o.w;
         const oh = o.rotated ? o.w : o.h;
         if (tx < o.x + ow + kerf - 0.1 && tx + nw + kerf > o.x + 0.1 &&
-            ty < o.y + oh + kerf - 0.1 && ty + nh + kerf > o.y + 0.1) return;
+          ty < o.y + oh + kerf - 0.1 && ty + nh + kerf > o.y + 0.1) return;
       }
 
       // Optimistic local update
@@ -277,16 +277,16 @@ export default function InteractiveSheetView({ nestingResult }) {
         drag.current.rotated = !drag.current.rotated;
         drag.current.forcedRotate = true;
         setGhost(prev => prev ? { ...prev, rotated: drag.current.rotated } : null);
-      }
+      } i
     };
 
     window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup",   onUp);
-    window.addEventListener("keydown",     onKey);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup",   onUp);
-      window.removeEventListener("keydown",     onKey);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("keydown", onKey);
     };
   }, [activeSheet, calculateSnap, getGeom, meta, sheet]);
 
@@ -365,19 +365,6 @@ export default function InteractiveSheetView({ nestingResult }) {
               fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={0.8} strokeDasharray="6 4" />
           )}
 
-          {/* Render Offcut Suggestions */}
-          {meta.offcut_suggestions?.map((sugg, i) => (
-            <g key={`sugg-${i}`}>
-              <rect x={toX(sugg.x)} y={toY(sugg.y + sugg.h)} 
-                width={toLen(sugg.w)} height={toLen(sugg.h)}
-                fill="rgba(34,197,94,0.1)" stroke="var(--ss-green)" strokeWidth={1.5} strokeDasharray="8 4" />
-              <text x={toX(sugg.x + sugg.w / 2)} y={toY(sugg.y + sugg.h / 2)} textAnchor="middle" dominantBaseline="middle"
-                fontSize={10} fontWeight="bold" fill="var(--ss-green)">
-                Suggested Offcut: {sugg.w.toFixed(0)} × {sugg.h.toFixed(0)}
-              </text>
-            </g>
-          ))}
-
           {Array.from({ length: Math.floor(sw / 100) + 1 }, (_, i) => i * 100).map(mm => (
             <g key={mm}>
               <line x1={toX(mm)} y1={oy + drawH} x2={toX(mm)} y2={oy + drawH + 6} stroke="#475569" strokeWidth={0.8} />
@@ -388,11 +375,11 @@ export default function InteractiveSheetView({ nestingResult }) {
           {sheet.map((part, idx) => {
             const isDraggingThis = ghost && drag.current?.idx === idx;
             const isSel = part.id === selectedId;
-            const ts  = isSel ? SELECTED_STYLE : (TYPE_STYLE[part.type] || TYPE_STYLE.default);
-            const pw  = toLen(part.rotated ? part.h : part.w);
-            const ph  = toLen(part.rotated ? part.w : part.h);
-            const px  = toX(part.x);
-            const py  = toY(part.y) - ph;
+            const ts = isSel ? SELECTED_STYLE : (TYPE_STYLE[part.type] || TYPE_STYLE.default);
+            const pw = toLen(part.rotated ? part.h : part.w);
+            const ph = toLen(part.rotated ? part.w : part.h);
+            const px = toX(part.x);
+            const py = toY(part.y) - ph;
             const showLabel = pw > MIN_LABEL_PX && ph > MIN_LABEL_PX;
             return (
               <g key={part.id}
@@ -400,28 +387,28 @@ export default function InteractiveSheetView({ nestingResult }) {
                 style={{ cursor: "grab", opacity: isDraggingThis ? 0 : 1 }}>
                 {part.is_small && <rect x={px} y={py} width={pw} height={ph} fill="url(#isv-hatch)" fillOpacity={0.6} />}
                 <rect x={px} y={py} width={pw} height={ph} fill={ts.fill} stroke={ts.stroke} strokeWidth={isSel ? 2 : 1} rx={2} />
-                {["Shaker","Shaker Step","Beaded Shaker","Thin Rail Shaker"].includes(part.type) && pw > 80 && ph > 80 && (() => {
+                {["Shaker", "Shaker Step", "Beaded Shaker", "Thin Rail Shaker"].includes(part.type) && pw > 80 && ph > 80 && (() => {
                   const fw = toLen(part.type === "Thin Rail Shaker" ? 45 : 65);
-                  return <rect x={px+fw} y={py+fw} width={Math.max(0,pw-fw*2)} height={Math.max(0,ph-fw*2)} fill="none" stroke={ts.stroke} strokeWidth={0.6} strokeDasharray="3 3" opacity={0.4} />;
+                  return <rect x={px + fw} y={py + fw} width={Math.max(0, pw - fw * 2)} height={Math.max(0, ph - fw * 2)} fill="none" stroke={ts.stroke} strokeWidth={0.6} strokeDasharray="3 3" opacity={0.4} />;
                 })()}
                 {showLabel && (
                   <>
-                    <text x={px+pw/2} y={py+ph/2-(pw>60?7:0)} textAnchor="middle" dominantBaseline="middle"
-                      fontSize={Math.min(13,Math.max(8,pw/6))} fontWeight="700" fill={ts.label}>{part.id}</text>
-                    {pw>60 && ph>30 && <text x={px+pw/2} y={py+ph/2+9} textAnchor="middle" dominantBaseline="middle"
-                      fontSize={Math.min(10,Math.max(7,pw/9))} fill={ts.label} opacity={0.7}>{part.orig_w}×{part.orig_h}</text>}
+                    <text x={px + pw / 2} y={py + ph / 2 - (pw > 60 ? 7 : 0)} textAnchor="middle" dominantBaseline="middle"
+                      fontSize={Math.min(13, Math.max(8, pw / 6))} fontWeight="700" fill={ts.label}>{part.id}</text>
+                    {pw > 60 && ph > 30 && <text x={px + pw / 2} y={py + ph / 2 + 9} textAnchor="middle" dominantBaseline="middle"
+                      fontSize={Math.min(10, Math.max(7, pw / 9))} fill={ts.label} opacity={0.7}>{part.orig_w}×{part.orig_h}</text>}
                   </>
                 )}
-                {isSel && <rect x={px-3} y={py-3} width={pw+6} height={ph+6} fill="none" stroke="#6C63FF" strokeWidth={1.5} strokeDasharray="5 3" rx={4} opacity={0.8} />}
+                {isSel && <rect x={px - 3} y={py - 3} width={pw + 6} height={ph + 6} fill="none" stroke="#6C63FF" strokeWidth={1.5} strokeDasharray="5 3" rx={4} opacity={0.8} />}
               </g>
             );
           })}
 
           {ghostEl}
 
-          <text x={ox+drawW/2} y={oy-8} textAnchor="middle" fontSize={11} fill="#64748b">{sw.toFixed(0)} mm</text>
-          <text x={ox-10} y={oy+drawH/2} textAnchor="middle" fontSize={11} fill="#64748b"
-            transform={`rotate(-90,${ox-10},${oy+drawH/2})`}>{sh.toFixed(0)} mm</text>
+          <text x={ox + drawW / 2} y={oy - 8} textAnchor="middle" fontSize={11} fill="#64748b">{sw.toFixed(0)} mm</text>
+          <text x={ox - 10} y={oy + drawH / 2} textAnchor="middle" fontSize={11} fill="#64748b"
+            transform={`rotate(-90,${ox - 10},${oy + drawH / 2})`}>{sh.toFixed(0)} mm</text>
         </svg>
 
         <PartDetailPanel part={selectedPart} onClose={() => setSelectedId(null)} onEdit={handleEditPart} />

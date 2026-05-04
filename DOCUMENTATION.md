@@ -32,6 +32,11 @@ The platform uses the **Maximal Rectangles** heuristic to pack part rectangles i
 - **Manual Adjustment Engine**: After nesting, the UI allows full manual override. Any modification (dragging or rotating) is instantly synced with the backend to ensure subsequent G-code is accurate.
   - **Dynamic Snapping**: Uses a 20mm threshold to snap parts perfectly to margins or adjacent parts (including kerf buffers).
   - **Collision Validation**: A server-side and client-side check prevents dropping parts in a way that violates CAM constraints.
+  - **Instant 3D Sync**: Any manual layout modifications are instantly synchronized to the 3D G-code viewer to ensure visual representations and subsequent toolpaths are accurate.
+
+### Material Optimization & Offcuts
+- **Offcuts Inventory**: The system tracks reusable material scraps for future jobs.
+- **Automated Offcut Generation**: After the nesting layout is finalized, a heuristic algorithm scans the sheets for large continuous unused areas (minimum 200x200mm). The system calculates the most optimal "guillotine cut" lines to maximize usable area and suggests these rectangles as reusable offcuts. Users can review these suggestions (rendered on the 2D map) and save them to the inventory with one click.
 
 ### G-Code Generation Strategies
 - **Snake (Zig-Zag)**: For efficient large-area material removal with minimal air-travel.
@@ -53,6 +58,11 @@ The platform uses the **Maximal Rectangles** heuristic to pack part rectangles i
    - **Rotate**: While dragging, press the **`R`** key to rotate the part 90°.
    - **Snapping**: Parts will automatically "jump" to the nearest edge or neighbor when within range.
    - **Edit**: A single click on a part (without dragging) opens a modal to edit its specific dimensions or type.
+
+### Offcut Management
+- Open the **Offcuts / Remnants Inventory** section in the left panel.
+- **Generated Offcuts**: Upon completing a nesting run, the system will highlight available offcut areas in green on the 2D map. Click "Save All to Inventory" to persist them.
+- **Manual Entry**: You can also manually add width, height, and quantity for existing shop offcuts to force the nesting engine to consume them before standard sheets.
 
 ### Machine Profiles
 - Use the **Gear Icon (⚙️)** in the sidebar to manage CNC configurations.
