@@ -42,6 +42,7 @@ The platform uses the **Maximal Rectangles** heuristic to pack part rectangles i
 - **Snake (Zig-Zag)**: For efficient large-area material removal with minimal air-travel.
 - **Spiral (Pocketing)**: Ideal for high-speed machining in rounder or complex pockets.
 - **Rest Machining**: Automatically detects corners where the primary tool (T6) cannot reach due to its radius and generates paths for a smaller secondary tool (T2/T3).
+- **Vacuum / Bridge Tabs**: Automatically identifies small parts (based on surface area) and inserts thin uncut "tabs" along their final cutout perimeter. This keeps small parts securely attached to the scrap material, preventing them from losing vacuum suction and being thrown by the cutter. Tab height and width are fully configurable.
 
 ---
 
@@ -53,6 +54,9 @@ The platform uses the **Maximal Rectangles** heuristic to pack part rectangles i
    - **Shaker**: Standard frame-and-panel.
    - **Shaker Step**: Layered Shaker design with an additional internal step.
    - **Slab**: Simple contour cutout.
+   - **Grooved Slab**: Slab door with decorative vertical/horizontal v-grooves.
+   - **Beaded Shaker**: Shaker door with a decorative bead detail on the inner frame.
+   - **Thin Rail Shaker**: Shaker style featuring narrow outer stiles/rails (e.g., 45mm frame width).
 3. **Manual Adjustments**:
    - **Drag & Drop**: Click and hold a part in the nesting preview canvas to move it.
    - **Rotate**: While dragging, press the **`R`** key to rotate the part 90°.
