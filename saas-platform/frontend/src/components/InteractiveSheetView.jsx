@@ -265,7 +265,7 @@ export default function InteractiveSheetView({ nestingResult }) {
       setLocalSheets(prev => {
         if (!prev) return prev;
         const next = prev.map(s => [...s]);
-        next[activeSheet][d.idx] = { ...next[activeSheet][d.idx], x: tx, y: ty, w: nw, h: nh, rotated: false };
+        next[activeSheet][d.idx] = { ...next[activeSheet][d.idx], x: tx, y: ty, w: nw, h: nh, rotated: d.rotated };
         // Sync to backend via event (SuperShakerPanel listens)
         document.dispatchEvent(new CustomEvent("update-nesting-layout", { detail: { sheets: next } }));
         return next;
@@ -364,6 +364,19 @@ export default function InteractiveSheetView({ nestingResult }) {
               width={toLen(sw - meta.margin * 2)} height={toLen(sh - meta.margin * 2)}
               fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={0.8} strokeDasharray="6 4" />
           )}
+
+          {/* Render Offcut Suggestions */}
+          {meta.offcut_suggestions?.map((sugg, i) => (
+            <g key={`sugg-${i}`}>
+              <rect x={toX(sugg.x)} y={toY(sugg.y + sugg.h)} 
+                width={toLen(sugg.w)} height={toLen(sugg.h)}
+                fill="rgba(34,197,94,0.1)" stroke="var(--ss-green)" strokeWidth={1.5} strokeDasharray="8 4" />
+              <text x={toX(sugg.x + sugg.w / 2)} y={toY(sugg.y + sugg.h / 2)} textAnchor="middle" dominantBaseline="middle"
+                fontSize={10} fontWeight="bold" fill="var(--ss-green)">
+                Suggested Offcut: {sugg.w.toFixed(0)} × {sugg.h.toFixed(0)}
+              </text>
+            </g>
+          ))}
 
           {Array.from({ length: Math.floor(sw / 100) + 1 }, (_, i) => i * 100).map(mm => (
             <g key={mm}>

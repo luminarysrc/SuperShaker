@@ -131,6 +131,7 @@ function AppContent() {
           <SuperShakerPanel
             onGcodeGenerated={handleGcodeGenerated}
             onNestingDone={handleNestingDone}
+            onNestingUpdated={setNestingResult}
             settingsVersion={settingsVersion}
             doorsVersion={doorsVersion}
           />

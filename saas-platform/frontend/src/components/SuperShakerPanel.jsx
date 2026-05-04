@@ -13,7 +13,7 @@ import {
   parseGcode, downloadGcode, downloadLabelsPdf, downloadCuttingMapPdf, updateNestingResult
 } from "../services/EngineClient.js";
 
-export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, settingsVersion, doorsVersion }) {
+export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, onNestingUpdated, settingsVersion, doorsVersion }) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
@@ -140,6 +140,27 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
       setError(e.message);
     }
   }, []);
+
+  const handleSaveSuggestedOffcuts = useCallback(async () => {
+    if (!nestingResult || !nestingResult.sheets_meta) return;
+    setIsLoading("saving_offcuts");
+    try {
+      for (const meta of nestingResult.sheets_meta) {
+        if (meta.offcut_suggestions && meta.offcut_suggestions.length > 0) {
+          for (const sugg of meta.offcut_suggestions) {
+            const o = await addOffcut({ w: sugg.w, h: sugg.h, qty: 1 });
+            setOffcuts(prev => [...prev, o]);
+          }
+          meta.offcut_suggestions = [];
+        }
+      }
+      setNestingResult({ ...nestingResult });
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setIsLoading("");
+    }
+  }, [nestingResult]);
 
   const startEdit = (id, field, currentValue) => {
     setEditingCell({ id, field });
@@ -273,6 +294,7 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
         if (!prev) return prev;
         const newNesting = { ...prev, sheets: newSheets };
         updateNestingResult(newNesting).catch(err => console.error("Failed to sync layout", err));
+        onNestingUpdated?.(newNesting);
         return newNesting;
       });
     };
@@ -729,6 +751,39 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, sett
                 </div>
               )}
             </section>
+
+            {/* Generated Offcuts */}
+            {nestingResult && (nestingResult.sheets_meta?.flatMap(m => m.offcut_suggestions || []).length > 0) && (
+              <section className="space-y-3 pt-3 mt-1 animate-fade-in" style={{ borderTop: "2px dashed var(--ss-green)" }}>
+                <div className="flex items-center justify-between gap-3 px-1">
+                  <h3 className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-2"
+                      style={{ color: "var(--ss-green)" }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                    Generated Offcuts
+                  </h3>
+                  <span className="text-[9px] font-mono px-2 py-0.5 rounded-full" style={{ backgroundColor: "rgba(34,197,94,0.15)", color: "var(--ss-green)" }}>
+                    {nestingResult.sheets_meta.flatMap(m => m.offcut_suggestions || []).length} available
+                  </span>
+                </div>
+                <div className="p-2 rounded-lg" style={{ backgroundColor: "rgba(34,197,94,0.05)", border: "1px solid rgba(34,197,94,0.2)" }}>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {nestingResult.sheets_meta.flatMap((m, i) => 
+                      (m.offcut_suggestions || []).map((sugg, j) => (
+                        <div key={`${i}-${j}`} className="px-2 py-1 rounded text-[10px] font-mono" style={{ backgroundColor: "var(--ss-card)", border: "1px solid var(--ss-border)", color: "var(--ss-text)" }}>
+                          S{i+1}: {toDisplay(sugg.w)} × {toDisplay(sugg.h)}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <button onClick={handleSaveSuggestedOffcuts}
+                    disabled={isLoading === "saving_offcuts"}
+                    className="ss-btn-primary w-full text-xs py-1.5 flex items-center justify-center gap-2"
+                    style={{ backgroundColor: "var(--ss-green)", color: "#000" }}>
+                    {isLoading === "saving_offcuts" ? "Saving..." : "Save All to Inventory"}
+                  </button>
+                </div>
+              </section>
+            )}
 
             {/* Workflow buttons */}
             <div className="space-y-2">

@@ -455,6 +455,46 @@ def do_nesting(doors, sheet_w, sheet_h, margin, kerf,
     total_avail = sum(m['w'] * m['h'] for m in best_sheets_meta) / 1e6 if best_sheets_meta else 0
     yield_pct = (total_area / total_avail * 100) if total_avail else 0
 
+    # Calculate offcut suggestions
+    for i, sheet in enumerate(best_sheets):
+        m = best_sheets_meta[i]
+        if not sheet or m.get('is_offcut'):
+            m['offcut_suggestions'] = []
+            continue
+        
+        sw, sh = m['w'], m['h']
+        max_x = max(p['x'] + p['w'] + kerf for p in sheet)
+        max_y = max(p['y'] + p['h'] + kerf for p in sheet)
+        
+        min_dim = 200.0
+        
+        # Option A: Vertical cut first
+        # Offcut 1: Right of max_x
+        o_v1 = {'w': sw - max_x, 'h': sh, 'x': max_x, 'y': 0}
+        # Offcut 2: Top of max_y, limited to max_x width
+        o_v2 = {'w': max_x, 'h': sh - max_y, 'x': 0, 'y': max_y}
+        
+        # Option B: Horizontal cut first
+        # Offcut 1: Top of max_y
+        o_h1 = {'w': sw, 'h': sh - max_y, 'x': 0, 'y': max_y}
+        # Offcut 2: Right of max_x, limited to max_y height
+        o_h2 = {'w': sw - max_x, 'h': max_y, 'x': max_x, 'y': 0}
+        
+        def get_valid(o1, o2):
+            v = []
+            if o1['w'] >= min_dim and o1['h'] >= min_dim: v.append(o1)
+            if o2['w'] >= min_dim and o2['h'] >= min_dim: v.append(o2)
+            return v
+            
+        opt_a = get_valid(o_v1, o_v2)
+        opt_b = get_valid(o_h1, o_h2)
+        
+        def max_area(opts):
+            return max([o['w'] * o['h'] for o in opts] + [0])
+            
+        suggestions = opt_a if max_area(opt_a) >= max_area(opt_b) else opt_b
+        m['offcut_suggestions'] = [{'w': round(s['w'], 1), 'h': round(s['h'], 1), 'x': round(s['x'], 1), 'y': round(s['y'], 1)} for s in suggestions]
+
     return {
         "sheets": best_sheets,
         "sheets_meta": best_sheets_meta,
