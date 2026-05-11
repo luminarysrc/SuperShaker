@@ -3,6 +3,7 @@
  */
 import React, { useState } from "react";
 import { useTheme } from "./ThemeProvider.jsx";
+import { login } from "../services/EngineClient.js";
 
 /* ── Animated CNC toolpath visual ─────────────────────────── */
 function ToolpathVisual() {
@@ -53,17 +54,24 @@ function ToolpathVisual() {
 }
 
 export default function LoginScreen({ onLogin }) {
-  const [email, setEmail] = useState("demo@supershaker.com");
-  const [password, setPassword] = useState("demo123");
+  const [email, setEmail] = useState("admin");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
   const { theme, toggleTheme } = useTheme();
   const isDark = theme === "dark";
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    await new Promise((r) => setTimeout(r, 600));
-    onLogin(email, password);
+    setError(null);
+    try {
+      const user = await login(email, password);
+      onLogin(user);
+    } catch (err) {
+      setError(err.message);
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -182,7 +190,7 @@ export default function LoginScreen({ onLogin }) {
                 Email
               </label>
               <input
-                type="email"
+                type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="ss-input w-full py-3 px-4 text-sm"
@@ -235,19 +243,12 @@ export default function LoginScreen({ onLogin }) {
                 "Sign In"
               )}
             </button>
+            {error && (
+              <div className="text-red-500 text-xs text-center mt-2 bg-red-500/10 py-2 rounded-lg border border-red-500/20">
+                {error}
+              </div>
+            )}
           </form>
-
-          {/* Beta notice */}
-          <div className="mt-8 flex items-center gap-2.5 rounded-xl px-4 py-3"
-               style={{
-                 backgroundColor: isDark ? "rgba(132,204,22,0.04)" : "rgba(132,204,22,0.06)",
-                 border: "1px solid rgba(132,204,22,0.1)",
-               }}>
-            <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: "#84cc16" }} />
-            <p className="text-[11px]" style={{ color: "var(--ss-text-muted)" }}>
-              <span className="font-semibold" style={{ color: "#84cc16" }}>Demo</span> — any credentials accepted
-            </p>
-          </div>
         </div>
       </div>
     </div>

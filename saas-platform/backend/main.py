@@ -12,6 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
 from fastapi.concurrency import run_in_threadpool
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Depends
 from pydantic import BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -20,6 +22,19 @@ from typing import Optional, Dict
 import os
 import logging
 import json
+import uuid
+
+# Authentication setup
+AUTH_USER = os.environ.get("AUTH_USER", "admin")
+AUTH_PASS = os.environ.get("AUTH_PASS", "supershaker2026")
+VALID_TOKEN = str(uuid.uuid4())
+
+security = HTTPBearer()
+
+def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if credentials.credentials != VALID_TOKEN:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    return credentials.credentials
 
 class JSONFormatter(logging.Formatter):
     def format(self, record):
@@ -53,8 +68,11 @@ app = FastAPI(
     version="0.2.0-beta",
 )
 
-# API Router with prefix
-router = APIRouter(prefix="/api")
+# Public router
+public_router = APIRouter(prefix="/api")
+
+# Protected router for business logic
+router = APIRouter(prefix="/api", dependencies=[Depends(verify_token)])
 
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
@@ -68,6 +86,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(public_router)
 app.include_router(router)
 
 # ════════════════════════════════════════════════════════════
@@ -225,7 +244,21 @@ class LabelRequest(BaseModel):
 #  Endpoints
 # ════════════════════════════════════════════════════════════
 
-@router.get("/health")
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+@public_router.post("/login")
+@limiter.limit("10/minute")
+async def login(request: Request, req: LoginRequest):
+    if req.username == AUTH_USER and req.password == AUTH_PASS:
+        logger.info(f"Successful login for user {req.username}")
+        return {"token": VALID_TOKEN, "user": {"name": req.username}}
+    logger.warning(f"Failed login attempt for username: {req.username}")
+    raise HTTPException(401, "Invalid credentials")
+
+
+@public_router.get("/health")
 @limiter.limit("100/minute")
 async def health_check(request: Request):
     return {"status": "ok", "version": "0.2.0-beta"}

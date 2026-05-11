@@ -8,7 +8,7 @@ import LoginScreen from "./components/LoginScreen.jsx";
 import Sidebar from "./components/Sidebar.jsx";
 import SuperShakerPanel from "./components/SuperShakerPanel.jsx";
 import GcodeViewerPanel from "./components/GcodeViewerPanel.jsx";
-import { listProfiles, createProfile, renameProfile, deleteProfile, loadProfile, saveProfile } from "./services/EngineClient.js";
+import { listProfiles, createProfile, renameProfile, deleteProfile, loadProfile, saveProfile, logout } from "./services/EngineClient.js";
 
 function AppContent() {
   const [user, setUser] = useState(null);
@@ -29,12 +29,20 @@ function AppContent() {
 
   const handleLogin = useCallback((u) => setUser(u), []);
   const handleLogout = useCallback(() => {
+    logout();
     setUser(null);
     setGcodeData(null);
     setGcodeText(null);
     setAllSheets(null);
     setNestingResult(null);
   }, []);
+
+  // Auto-login if token exists
+  useEffect(() => {
+    if (localStorage.getItem("ss_auth_token") && !user) {
+      setUser({ name: "Admin" });
+    }
+  }, [user]);
 
   const handleGcodeGenerated = useCallback(({ gcodeText, gcodeData, stats, allSheets, orderId }) => {
     setGcodeData(gcodeData);

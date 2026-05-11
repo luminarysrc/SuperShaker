@@ -5,6 +5,36 @@
 
 const API_BASE = "/api";
 
+// Override fetch locally to inject auth token
+const originalFetch = window.fetch;
+async function fetch(url, options = {}) {
+  const token = localStorage.getItem("ss_auth_token");
+  if (token && url.startsWith(API_BASE) && !url.endsWith("/login")) {
+    options.headers = { ...options.headers, "Authorization": `Bearer ${token}` };
+  }
+  return originalFetch(url, options);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Authentication
+// ═══════════════════════════════════════════════════════════
+
+export async function login(username, password) {
+  const r = await originalFetch(`${API_BASE}/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  if (!r.ok) throw new Error("Invalid username or password");
+  const data = await r.json();
+  localStorage.setItem("ss_auth_token", data.token);
+  return data.user;
+}
+
+export function logout() {
+  localStorage.removeItem("ss_auth_token");
+}
+
 // ═══════════════════════════════════════════════════════════
 //  Doors CRUD
 // ═══════════════════════════════════════════════════════════
