@@ -1,0 +1,17 @@
+.git
+.gitignore
+.venv
+node_modules
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.db
+.DS_Store
+saas-platform/frontend/node_modules
+saas-platform/frontend/dist
+saas-platform/backend/__pycache__
+prototype.log
+json/
+SuperShaker_v*.py
+G-code Visualizer/

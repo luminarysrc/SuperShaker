@@ -7,13 +7,37 @@ Run with: uvicorn main:app --reload --port 8000
 import copy
 import io
 import pandas as pd
-from fastapi import FastAPI, HTTPException, UploadFile, File, Request, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Request, Form, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, Response
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from typing import Optional, Dict
+import os
+import logging
+import json
+
+class JSONFormatter(logging.Formatter):
+    def format(self, record):
+        log_record = {
+            "severity": record.levelname,
+            "message": record.getMessage(),
+            "name": record.name
+        }
+        if record.exc_info:
+            log_record["traceback"] = self.formatException(record.exc_info)
+        return json.dumps(log_record)
+
+logger = logging.getLogger("supershaker")
+handler = logging.StreamHandler()
+handler.setFormatter(JSONFormatter())
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+
 
 from engine import do_nesting, generate_gcode_for_sheet, calc_t6_params
 from label_generator import generate_labels_pdf
@@ -29,21 +53,22 @@ app = FastAPI(
     version="0.2.0-beta",
 )
 
+# API Router with prefix
+router = APIRouter(prefix="/api")
+
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "Accept"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+
+app.include_router(router)
 
 # ════════════════════════════════════════════════════════════
 #  In-memory state (single-user prototype)
@@ -200,7 +225,7 @@ class LabelRequest(BaseModel):
 #  Endpoints
 # ════════════════════════════════════════════════════════════
 
-@app.get("/health")
+@router.get("/health")
 @limiter.limit("100/minute")
 async def health_check(request: Request):
     return {"status": "ok", "version": "0.2.0-beta"}
@@ -208,13 +233,13 @@ async def health_check(request: Request):
 
 # ── Doors CRUD ───────────────────────────────────────────
 
-@app.get("/doors")
+@router.get("/doors")
 @limiter.limit("100/minute")
 async def list_doors(request: Request):
     return _state["doors"]
 
 
-@app.post("/doors")
+@router.post("/doors")
 @limiter.limit("100/minute")
 async def add_door(request: Request, door: DoorIn):
     d = {
@@ -229,7 +254,7 @@ async def add_door(request: Request, door: DoorIn):
     return d
 
 
-@app.put("/doors/{door_id}")
+@router.put("/doors/{door_id}")
 @limiter.limit("100/minute")
 async def update_door(request: Request, door_id: int, door: DoorIn):
     for d in _state["doors"]:
@@ -240,7 +265,7 @@ async def update_door(request: Request, door_id: int, door: DoorIn):
     raise HTTPException(404, f"Door {door_id} not found")
 
 
-@app.delete("/doors/{door_id}")
+@router.delete("/doors/{door_id}")
 @limiter.limit("100/minute")
 async def delete_door(request: Request, door_id: int):
     _state["doors"] = [d for d in _state["doors"] if d["id"] != door_id]
@@ -248,7 +273,7 @@ async def delete_door(request: Request, door_id: int):
     return {"ok": True}
 
 
-@app.delete("/doors")
+@router.delete("/doors")
 @limiter.limit("100/minute")
 async def clear_doors(request: Request):
     _state["doors"] = []
@@ -259,11 +284,11 @@ async def clear_doors(request: Request):
 
 # ── Offcuts CRUD ─────────────────────────────────────────
 
-@app.get("/offcuts")
+@router.get("/offcuts")
 async def list_offcuts():
     return _state["offcuts"]
 
-@app.post("/offcuts", response_model=OffcutOut)
+@router.post("/offcuts", response_model=OffcutOut)
 async def add_offcut(offcut: OffcutIn):
     new_o = {
         "id": _state["next_offcut_id"],
@@ -276,7 +301,7 @@ async def add_offcut(offcut: OffcutIn):
     _state["nesting_result"] = None
     return new_o
 
-@app.delete("/offcuts/{offcut_id}")
+@router.delete("/offcuts/{offcut_id}")
 async def delete_offcut(offcut_id: int):
     for i, o in enumerate(_state["offcuts"]):
         if o["id"] == offcut_id:
@@ -286,7 +311,7 @@ async def delete_offcut(offcut_id: int):
     raise HTTPException(404, "Offcut not found")
 
 
-@app.post("/jobs/import-batch")
+@router.post("/jobs/import-batch")
 @limiter.limit("10/minute")
 async def import_batch(
     request: Request,
@@ -300,10 +325,11 @@ async def import_batch(
     contents = await file.read()
     try:
         if file.filename.endswith(".csv"):
-            df = pd.read_csv(io.BytesIO(contents))
+            df = await run_in_threadpool(pd.read_csv, io.BytesIO(contents))
         else:
-            df = pd.read_excel(io.BytesIO(contents))
+            df = await run_in_threadpool(pd.read_excel, io.BytesIO(contents))
     except Exception as e:
+        logger.error(f"Failed to read imported batch file {file.filename}: {e}", exc_info=True)
         raise HTTPException(400, f"Error reading file: {str(e)}")
         
     col_map = {str(c).lower().strip(): c for c in df.columns}
@@ -386,13 +412,13 @@ async def import_batch(
 
 # ── Settings ─────────────────────────────────────────────
 
-@app.get("/settings")
+@router.get("/settings")
 @limiter.limit("100/minute")
 async def get_settings(request: Request):
     return _state["settings"]
 
 
-@app.put("/settings")
+@router.put("/settings")
 @limiter.limit("100/minute")
 async def update_settings(request: Request, s: SettingsModel):
     for k, v in s.model_dump(exclude_none=True).items():
@@ -402,7 +428,7 @@ async def update_settings(request: Request, s: SettingsModel):
 
 # ── Machine Profiles ─────────────────────────────────────
 
-@app.get("/profiles")
+@router.get("/profiles")
 @limiter.limit("100/minute")
 async def list_profiles(request: Request):
     return {
@@ -411,7 +437,7 @@ async def list_profiles(request: Request):
     }
 
 
-@app.post("/profiles")
+@router.post("/profiles")
 @limiter.limit("100/minute")
 async def create_profile(request: Request, body: ProfileIn):
     global _profile_next_id
@@ -426,7 +452,7 @@ async def create_profile(request: Request, body: ProfileIn):
     return {"id": profile["id"], "name": profile["name"]}
 
 
-@app.put("/profiles/{profile_id}")
+@router.put("/profiles/{profile_id}")
 @limiter.limit("100/minute")
 async def rename_profile(request: Request, profile_id: int, body: ProfileIn):
     for p in _profiles:
@@ -436,7 +462,7 @@ async def rename_profile(request: Request, profile_id: int, body: ProfileIn):
     raise HTTPException(404, f"Profile {profile_id} not found")
 
 
-@app.delete("/profiles/{profile_id}")
+@router.delete("/profiles/{profile_id}")
 @limiter.limit("100/minute")
 async def delete_profile(request: Request, profile_id: int):
     if len(_profiles) <= 1:
@@ -451,7 +477,7 @@ async def delete_profile(request: Request, profile_id: int):
     return {"ok": True, "active_id": _state["active_profile_id"]}
 
 
-@app.post("/profiles/{profile_id}/load")
+@router.post("/profiles/{profile_id}/load")
 @limiter.limit("100/minute")
 async def load_profile(request: Request, profile_id: int):
     for p in _profiles:
@@ -462,7 +488,7 @@ async def load_profile(request: Request, profile_id: int):
     raise HTTPException(404, f"Profile {profile_id} not found")
 
 
-@app.post("/profiles/{profile_id}/save")
+@router.post("/profiles/{profile_id}/save")
 @limiter.limit("100/minute")
 async def save_profile(request: Request, profile_id: int):
     for p in _profiles:
@@ -474,7 +500,7 @@ async def save_profile(request: Request, profile_id: int):
 
 # ── Chip-load Calculator ─────────────────────────────────
 
-@app.post("/calc-params")
+@router.post("/calc-params")
 @limiter.limit("100/minute")
 async def calc_params(request: Request, req: CalcParamsRequest):
     return calc_t6_params(req.D, req.z, req.tool_type, req.pass_type, req.doc)
@@ -482,23 +508,30 @@ async def calc_params(request: Request, req: CalcParamsRequest):
 
 # ── Nesting ──────────────────────────────────────────────
 
-@app.post("/nest")
+@router.post("/nest")
 @limiter.limit("10/minute")
 async def nest(request: Request):
     if not _state["doors"]:
         raise HTTPException(400, "No parts to nest")
 
     s = _state["settings"]
-    result = do_nesting(
-        doors=_state["doors"],
-        offcuts=_state["offcuts"],
-        sheet_w=s["sheet_w"], sheet_h=s["sheet_h"],
-        margin=s["margin"], kerf=s["kerf"],
-        allow_rotation=s["allow_rotation"],
-        small_part_threshold=s["small_part_threshold"],
-        nesting_iterations=s.get("nesting_iterations", 100),
-        sheet_grain=s.get("sheet_grain", "None"),
-    )
+    logger.info(f"Starting nesting for {len(_state['doors'])} doors")
+    try:
+        result = await run_in_threadpool(
+            do_nesting,
+            doors=_state["doors"],
+            offcuts=_state["offcuts"],
+            sheet_w=s["sheet_w"], sheet_h=s["sheet_h"],
+            margin=s["margin"], kerf=s["kerf"],
+            allow_rotation=s["allow_rotation"],
+            small_part_threshold=s["small_part_threshold"],
+            nesting_iterations=s.get("nesting_iterations", 100),
+            sheet_grain=s.get("sheet_grain", "None"),
+        )
+        logger.info(f"Nesting complete. Generated {len(result.get('sheets', []))} sheets.")
+    except Exception as e:
+        logger.error(f"Nesting failed: {e}", exc_info=True)
+        raise HTTPException(500, f"Nesting engine failed: {str(e)}")
     
     # Costing Estimation
     total_length_mm = 0
@@ -539,7 +572,7 @@ async def nest(request: Request):
     return result
 
 
-@app.post("/update-nesting")
+@router.post("/update-nesting")
 @limiter.limit("100/minute")
 async def update_nesting(request: Request, payload: dict):
     _state["nesting_result"] = payload
@@ -550,25 +583,27 @@ async def update_nesting(request: Request, payload: dict):
 
 from fastapi.responses import Response
 
-@app.post("/labels/pdf")
+@router.post("/labels/pdf")
 @limiter.limit("10/minute")
 async def create_labels_pdf(request: Request, req: LabelRequest):
-    pdf_buffer = generate_labels_pdf(req, _state["settings"])
+    logger.info(f"Generating PDF labels for order {req.order_id}")
+    pdf_buffer = await run_in_threadpool(generate_labels_pdf, req, _state["settings"])
     return Response(
         content=pdf_buffer.getvalue(),
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=labels_{req.order_id}.pdf"}
     )
 
-@app.get("/labels/pdf")
+@router.get("/labels/pdf")
 @limiter.limit("10/minute")
 async def create_labels_pdf_get(request: Request):
     order_id = _state["settings"].get("order_id", "")
+    logger.info(f"Generating PDF labels (GET) for order {order_id}")
     req = LabelRequest(
         order_id=order_id,
         doors=_state["doors"]
     )
-    pdf_buffer = generate_labels_pdf(req, _state["settings"])
+    pdf_buffer = await run_in_threadpool(generate_labels_pdf, req, _state["settings"])
     return Response(
         content=pdf_buffer.getvalue(),
         media_type="application/pdf",
@@ -580,14 +615,16 @@ async def create_labels_pdf_get(request: Request):
 
 from cutting_map import generate_cutting_map_pdf
 
-@app.get("/cutting-map/pdf")
+@router.get("/cutting-map/pdf")
 @limiter.limit("10/minute")
 async def create_cutting_map_pdf(request: Request):
     if not _state["nesting_result"] or not _state["nesting_result"]["sheets"]:
         raise HTTPException(400, "No nesting result. Run nesting first.")
     s = _state["settings"]
     order_id = s.get("order_id", "")
-    pdf_buffer = generate_cutting_map_pdf(
+    logger.info(f"Generating Cutting Map PDF for order {order_id}")
+    pdf_buffer = await run_in_threadpool(
+        generate_cutting_map_pdf,
         sheets=_state["nesting_result"]["sheets"],
         sheets_meta=_state["nesting_result"]["sheets_meta"],
         mat_z=s["mat_z"], margin=s["margin"],
@@ -601,7 +638,7 @@ async def create_cutting_map_pdf(request: Request):
 
 # ── G-code Generation ────────────────────────────────────
 
-@app.post("/generate-gcode")
+@router.post("/generate-gcode")
 @limiter.limit("10/minute")
 async def generate_gcode(request: Request, req: GenerateRequest):
     nr = _state["nesting_result"]
@@ -619,45 +656,52 @@ async def generate_gcode(request: Request, req: GenerateRequest):
         indices = [req.sheet_index]
 
     results = []
+    logger.info(f"Starting G-code generation for {len(indices)} sheets")
     for idx in indices:
         meta = nr["sheets_meta"][idx]
-        gcode = generate_gcode_for_sheet(
-            sheet_doors=sheets[idx],
-            sheet_idx=idx,
-            total_sheets=len(sheets),
-            sheet_w=meta["w"], sheet_h=meta["h"],
-            mat_z=s["mat_z"], margin=s["margin"],
-            frame_w=s["frame_w"],
-            pocket_depth=s["pocket_depth"],
-            pocket_depth2=s["pocket_depth2"],
-            pocket_step_offset=s["pocket_step_offset"],
-            chamfer_depth=s["chamfer_depth"],
-            outer_chamfer_depth=s["outer_chamfer_depth"],
-            t6_name=s["t6_name"], t6_dia=s["t6_dia"],
-            t6_type=s["t6_type"],
-            t6_spindle=s["t6_spindle"], t6_feed=s["t6_feed"],
-            pocket_strategy=s["pocket_strategy"],
-            spiral_overlap=s["spiral_overlap"],
-            do_pocket=s["do_pocket"],
-            do_corners_rest=s["do_corners_rest"],
-            do_french_miter=s["do_french_miter"],
-            do_cutout=s["do_cutout"],
-            do_rough_pass=s["do_rough_pass"],
-            common_line=s.get("common_line", False),
-            do_tabs=s.get("do_tabs", True),
-            tab_height=s.get("tab_height", 0.4),
-            tab_width=s.get("tab_width", 4.0),
-            tab_min_area=s.get("small_part_threshold", 0.05) * 1e6,
-            kerf=s["kerf"], corner_r=s["corner_r"],
-            feed_xy=s["feed_xy"],
-            t2_tool_t=s["t2_tool_t"], t2_spindle=s["t2_spindle"],
-            t2_feed=s["t2_feed"],
-            t3_tool_t=s["t3_tool_t"], t3_spindle=s["t3_spindle"],
-            t3_feed=s["t3_feed"],
-            t5_tool_t=s["t5_tool_t"], t5_spindle=s["t5_spindle"],
-            t5_feed=s["t5_feed"],
-            order_id=s["order_id"],
-        )
+        try:
+            gcode = await run_in_threadpool(
+                generate_gcode_for_sheet,
+                sheet_doors=sheets[idx],
+                sheet_idx=idx,
+                total_sheets=len(sheets),
+                sheet_w=meta["w"], sheet_h=meta["h"],
+                mat_z=s["mat_z"], margin=s["margin"],
+                frame_w=s["frame_w"],
+                pocket_depth=s["pocket_depth"],
+                pocket_depth2=s["pocket_depth2"],
+                pocket_step_offset=s["pocket_step_offset"],
+                chamfer_depth=s["chamfer_depth"],
+                outer_chamfer_depth=s["outer_chamfer_depth"],
+                t6_name=s["t6_name"], t6_dia=s["t6_dia"],
+                t6_type=s["t6_type"],
+                t6_spindle=s["t6_spindle"], t6_feed=s["t6_feed"],
+                pocket_strategy=s["pocket_strategy"],
+                spiral_overlap=s["spiral_overlap"],
+                do_pocket=s["do_pocket"],
+                do_corners_rest=s["do_corners_rest"],
+                do_french_miter=s["do_french_miter"],
+                do_cutout=s["do_cutout"],
+                do_rough_pass=s["do_rough_pass"],
+                common_line=s.get("common_line", False),
+                do_tabs=s.get("do_tabs", True),
+                tab_height=s.get("tab_height", 0.4),
+                tab_width=s.get("tab_width", 4.0),
+                tab_min_area=s.get("small_part_threshold", 0.05) * 1e6,
+                kerf=s["kerf"], corner_r=s["corner_r"],
+                feed_xy=s["feed_xy"],
+                t2_tool_t=s["t2_tool_t"], t2_spindle=s["t2_spindle"],
+                t2_feed=s["t2_feed"],
+                t3_tool_t=s["t3_tool_t"], t3_spindle=s["t3_spindle"],
+                t3_feed=s["t3_feed"],
+                t5_tool_t=s["t5_tool_t"], t5_spindle=s["t5_spindle"],
+                t5_feed=s["t5_feed"],
+                order_id=s["order_id"],
+            )
+        except Exception as e:
+            logger.error(f"G-code generation failed for sheet {idx}: {e}", exc_info=True)
+            raise HTTPException(500, f"G-code generation failed: {str(e)}")
+            
         line_count = len([l for l in gcode.split("\n") if l.strip() and not l.startswith("(")])
         time_stats = estimate_machining_time(gcode)
         results.append({
@@ -676,7 +720,24 @@ async def generate_gcode(request: Request, req: GenerateRequest):
     return {"sheets": results}
 
 
+# ── Static Files ─────────────────────────────────────────
+
+# Mount the frontend dist directory to the root
+# Note: In production, this folder will contain the built React app
+dist_path = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
+if os.path.exists(dist_path):
+    app.mount("/", StaticFiles(directory=dist_path, html=True), name="static")
+
+@app.get("/{full_path:path}")
+async def catch_all(full_path: str):
+    # This ensures that React Router works by serving index.html for unknown routes
+    if os.path.exists(os.path.join(dist_path, "index.html")):
+        return FileResponse(os.path.join(dist_path, "index.html"))
+    return {"error": "Frontend not built or index.html missing"}
+
 # ════════════════════════════════════════════════════════════
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    # Use PORT environment variable if available (for Cloud Run)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
