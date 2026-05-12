@@ -86,8 +86,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(public_router)
-app.include_router(router)
 
 # ════════════════════════════════════════════════════════════
 #  In-memory state (single-user prototype)
@@ -752,6 +750,11 @@ async def generate_gcode(request: Request, req: GenerateRequest):
 
     return {"sheets": results}
 
+
+# ── Include Routers ────────────────────────────────────────
+
+app.include_router(public_router)
+app.include_router(router)
 
 # ── Static Files ─────────────────────────────────────────
 

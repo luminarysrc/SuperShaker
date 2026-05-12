@@ -15,15 +15,16 @@ COPY saas-platform/backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend code
-COPY saas-platform/backend/ .
+COPY saas-platform/backend/ ./backend/
 
 # Copy built frontend from Stage 1
-# We place it in a way that main.py can find it at ../frontend/dist
-COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
 # Expose the port Cloud Run will use
 ENV PORT=8080
 EXPOSE 8080
+
+WORKDIR /app/backend
 
 # Run the application using Uvicorn directly
 CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --workers 1"]
