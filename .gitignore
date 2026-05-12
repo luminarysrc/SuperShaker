@@ -150,3 +150,6 @@ Thumbs.db
 *.nc
 *.csv
 *.xlsx
+
+# Clerk env
+saas-platform/frontend/.env.local
