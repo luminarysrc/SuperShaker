@@ -149,7 +149,7 @@ export default function LoginScreen({ onLogin }) {
           {/* Version */}
           <div className="relative z-10 p-10 pt-0 text-center">
             <p className="text-[10px] font-mono" style={{ color: "rgba(255,255,255,0.2)" }}>
-              v0.2.0-beta
+              v0.2.1-beta
             </p>
           </div>
         </div>
