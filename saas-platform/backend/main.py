@@ -768,7 +768,10 @@ if os.path.exists(dist_path):
 async def catch_all(full_path: str):
     # This ensures that React Router works by serving index.html for unknown routes
     if os.path.exists(os.path.join(dist_path, "index.html")):
-        return FileResponse(os.path.join(dist_path, "index.html"))
+        return FileResponse(
+            os.path.join(dist_path, "index.html"),
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"}
+        )
     return {"error": "Frontend not built or index.html missing"}
 
 # ════════════════════════════════════════════════════════════
