@@ -12,7 +12,12 @@ async function fetch(url, options = {}) {
   if (token && url.startsWith(API_BASE) && !url.endsWith("/login")) {
     options.headers = { ...options.headers, "Authorization": `Bearer ${token}` };
   }
-  return originalFetch(url, options);
+  const r = await originalFetch(url, options);
+  if (r.status === 401 && !url.endsWith("/login")) {
+    localStorage.removeItem("ss_auth_token");
+    window.location.reload();
+  }
+  return r;
 }
 
 // ═══════════════════════════════════════════════════════════
