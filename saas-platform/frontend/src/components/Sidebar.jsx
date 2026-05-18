@@ -73,6 +73,7 @@ export default function Sidebar({
             color: "#FFFFFF",
             border: "2px solid var(--ss-violet)",
           }}
+          aria-label={user?.name || "User Profile"}
           title={user?.name || "User Profile"}>
           {(user?.name || "U")[0].toUpperCase()}
         </button>
@@ -110,6 +111,7 @@ export default function Sidebar({
             border: "1px solid " + (showMachinePanel ? "var(--ss-violet)" : "var(--ss-border)"),
             color: showMachinePanel ? "var(--ss-violet)" : "var(--ss-text-muted)",
           }}
+          aria-label="Machine Profiles"
           title="Machine Profiles">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -190,6 +192,7 @@ export default function Sidebar({
                         onClick={(e) => { e.stopPropagation(); onProfileSave && onProfileSave(p.id); }}
                         className="p-1 rounded transition-all"
                         style={{ color: "var(--ss-accent)" }}
+                        aria-label="Save current settings"
                         title="Save current settings">
                         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -204,6 +207,7 @@ export default function Sidebar({
                       onClick={(e) => { e.stopPropagation(); handleStartRename(p); }}
                       className="p-1 rounded transition-all"
                       style={{ color: "var(--ss-text-muted)" }}
+                      aria-label="Rename profile"
                       title="Rename">
                       <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
                            stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -217,6 +221,7 @@ export default function Sidebar({
                         onClick={(e) => { e.stopPropagation(); onProfileDelete && onProfileDelete(p.id); }}
                         className="p-1 rounded transition-all hover:text-red-500"
                         style={{ color: "var(--ss-text-muted)" }}
+                        aria-label="Delete profile"
                         title="Delete">
                         <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -249,7 +254,8 @@ export default function Sidebar({
                     backgroundColor: "var(--ss-accent-soft)",
                     color: "var(--ss-accent)",
                     border: "1px solid rgba(132,204,22,0.2)",
-                  }}>
+                  }}
+                  aria-label="Create new profile">
                   +
                 </button>
               </div>
@@ -266,7 +272,7 @@ export default function Sidebar({
       </div>
 
       {/* Bottom: Logout */}
-      <button onClick={onLogout} title="Log out"
+      <button onClick={onLogout} title="Log out" aria-label="Log out"
         className="w-10 h-10 rounded-lg transition-all flex items-center justify-center active:scale-95 mb-1"
         style={{
           backgroundColor: "var(--ss-card)",

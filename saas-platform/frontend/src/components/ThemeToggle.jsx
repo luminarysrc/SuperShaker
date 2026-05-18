@@ -12,6 +12,7 @@ export default function ThemeToggle() {
     <button
       onClick={toggleTheme}
       title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
       className="relative w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-200 group"
       style={{
         backgroundColor: isDark ? "var(--ss-card)" : "var(--ss-input-bg)",
