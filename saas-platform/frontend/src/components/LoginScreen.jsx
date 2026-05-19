@@ -91,6 +91,7 @@ export default function LoginScreen({ onLogin }) {
           color: isDark ? "#a1a1aa" : "#52525b",
         }}
         title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+        aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
       >
         {isDark ? (
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -185,12 +186,12 @@ export default function LoginScreen({ onLogin }) {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-[11px] font-medium mb-1.5 uppercase tracking-wider"
+              <label htmlFor="login-email" className="block text-[11px] font-medium mb-1.5 uppercase tracking-wider"
                      style={{ color: "var(--ss-text-muted)" }}>
                 Email
               </label>
               <input
-                type="text"
+                type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="ss-input w-full py-3 px-4 text-sm"
@@ -205,7 +206,7 @@ export default function LoginScreen({ onLogin }) {
             </div>
 
             <div>
-              <label className="block text-[11px] font-medium mb-1.5 uppercase tracking-wider"
+              <label htmlFor="login-password" className="block text-[11px] font-medium mb-1.5 uppercase tracking-wider"
                      style={{ color: "var(--ss-text-muted)" }}>
                 Password
               </label>
