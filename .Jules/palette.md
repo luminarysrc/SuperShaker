@@ -1,0 +1,3 @@
+## 2024-05-21 - Icon Button Accessibility
+**Learning:** Found an accessibility issue pattern in the app's components (like Sidebar and ThemeToggle) where icon-only buttons relied solely on `title` attributes for tooltips, lacking `aria-label`s for screen readers. Additionally, Tailwind's `focus:outline-none` was used aggressively, breaking keyboard navigation.
+**Action:** Always ensure icon-only buttons have an explicit `aria-label` and a visible focus state (e.g., `focus-visible:ring-2`) for keyboard accessibility. Remove `focus:outline-none` unless a custom focus state is properly implemented.
