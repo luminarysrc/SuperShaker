@@ -667,8 +667,9 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, onNe
                           </td>
                           <td className="py-1.5 px-1">
                             <button onClick={() => handleDeleteDoor(d.id)}
-                              className="text-xs transition-colors hover:text-red-500"
-                              style={{ color: "var(--ss-text-muted)" }}>
+                              className="text-xs transition-colors hover:text-red-500 focus-visible:ring-2 focus-visible:outline-none rounded-sm"
+                              style={{ color: "var(--ss-text-muted)" }}
+                              aria-label={`Delete part ${d.id}`}>
                               ✕
                             </button>
                           </td>
@@ -754,8 +755,9 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, onNe
                               <td className="py-1 px-2 text-center font-mono">{o.qty}</td>
                               <td className="py-1 px-1 text-center">
                                 <button onClick={() => handleDeleteOffcut(o.id)}
-                                  className="text-xs transition-colors hover:text-red-500"
-                                  style={{ color: "var(--ss-text-muted)" }}>
+                                  className="text-xs transition-colors hover:text-red-500 focus-visible:ring-2 focus-visible:outline-none rounded-sm"
+                                  style={{ color: "var(--ss-text-muted)" }}
+                                  aria-label={`Delete offcut ${o.id}`}>
                                   ✕
                                 </button>
                               </td>
