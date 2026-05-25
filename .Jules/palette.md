@@ -1,3 +1,3 @@
-## 2024-05-21 - Icon Button Accessibility
-**Learning:** Found an accessibility issue pattern in the app's components (like Sidebar and ThemeToggle) where icon-only buttons relied solely on `title` attributes for tooltips, lacking `aria-label`s for screen readers. Additionally, Tailwind's `focus:outline-none` was used aggressively, breaking keyboard navigation.
-**Action:** Always ensure icon-only buttons have an explicit `aria-label` and a visible focus state (e.g., `focus-visible:ring-2`) for keyboard accessibility. Remove `focus:outline-none` unless a custom focus state is properly implemented.
+## 2023-10-24 - Segmented Controls Accessibility
+**Learning:** The app uses custom segmented controls (`ss-segment` class containing `ss-segment-btn` buttons) for toggles like playback speed and view modes, but these lack grouping semantics and state indicators out of the box.
+**Action:** When working with `ss-segment`, always ensure the container has `role="group"` and an `aria-label`, and the active button uses `aria-pressed={condition}`.
