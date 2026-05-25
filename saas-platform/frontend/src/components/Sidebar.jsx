@@ -67,7 +67,7 @@ export default function Sidebar({
       <div className="relative" ref={profileMenuRef}>
         <button 
           onClick={() => { setShowProfileMenu(!showProfileMenu); setShowMachinePanel(false); }}
-          className="w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold transition-all focus:outline-none active:scale-95"
+          className="w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold transition-all active:scale-95 focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:outline-none"
           style={{
             backgroundColor: "var(--ss-accent)",
             color: "#FFFFFF",
@@ -105,7 +105,7 @@ export default function Sidebar({
       <div className="relative mt-4" ref={machinePanelRef}>
         <button
           onClick={() => { setShowMachinePanel(!showMachinePanel); setShowProfileMenu(false); }}
-          className="w-10 h-10 rounded-lg flex items-center justify-center transition-all focus:outline-none active:scale-95"
+          className="w-10 h-10 rounded-lg flex items-center justify-center transition-all active:scale-95 focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:outline-none"
           style={{
             backgroundColor: showMachinePanel ? "var(--ss-accent-soft)" : "var(--ss-card)",
             border: "1px solid " + (showMachinePanel ? "var(--ss-violet)" : "var(--ss-border)"),
@@ -190,10 +190,10 @@ export default function Sidebar({
                     {p.id === activeProfileId && (
                       <button
                         onClick={(e) => { e.stopPropagation(); onProfileSave && onProfileSave(p.id); }}
-                        className="p-1 rounded transition-all"
+                        className="p-1 rounded transition-all focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:outline-none"
                         style={{ color: "var(--ss-accent)" }}
-                        aria-label="Save current settings"
-                        title="Save current settings">
+                        title="Save current settings"
+                        aria-label="Save current settings">
                         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
@@ -205,10 +205,10 @@ export default function Sidebar({
                     {/* Rename */}
                     <button
                       onClick={(e) => { e.stopPropagation(); handleStartRename(p); }}
-                      className="p-1 rounded transition-all"
+                      className="p-1 rounded transition-all focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:outline-none"
                       style={{ color: "var(--ss-text-muted)" }}
-                      aria-label="Rename profile"
-                      title="Rename">
+                      title="Rename"
+                      aria-label="Rename profile">
                       <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
                            stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -219,10 +219,10 @@ export default function Sidebar({
                     {(profiles || []).length > 1 && (
                       <button
                         onClick={(e) => { e.stopPropagation(); onProfileDelete && onProfileDelete(p.id); }}
-                        className="p-1 rounded transition-all hover:text-red-500"
+                        className="p-1 rounded transition-all hover:text-red-500 focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:outline-none"
                         style={{ color: "var(--ss-text-muted)" }}
-                        aria-label="Delete profile"
-                        title="Delete">
+                        title="Delete"
+                        aria-label="Delete profile">
                         <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <polyline points="3 6 5 6 21 6"/>
@@ -249,13 +249,14 @@ export default function Sidebar({
                 <button
                   onClick={handleCreateProfile}
                   disabled={!newProfileName.trim()}
-                  className="px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+                  aria-label="Create new profile"
+                  className="px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:outline-none"
                   style={{
                     backgroundColor: "var(--ss-accent-soft)",
                     color: "var(--ss-accent)",
                     border: "1px solid rgba(132,204,22,0.2)",
                   }}
-                  aria-label="Create new profile">
+                  aria-label="Create profile">
                   +
                 </button>
               </div>
@@ -273,7 +274,7 @@ export default function Sidebar({
 
       {/* Bottom: Logout */}
       <button onClick={onLogout} title="Log out" aria-label="Log out"
-        className="w-10 h-10 rounded-lg transition-all flex items-center justify-center active:scale-95 mb-1"
+        className="w-10 h-10 rounded-lg transition-all flex items-center justify-center active:scale-95 mb-1 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:outline-none"
         style={{
           backgroundColor: "var(--ss-card)",
           color: "var(--ss-danger)",
