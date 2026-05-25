@@ -534,9 +534,10 @@ export default function GcodeViewerPanel({
                   type="range"
                   min="0"
                   max="1000"
+                  aria-label="Simulation progress"
                   value={Math.round(toolProgress * 1000)}
                   onChange={e => { setIsPlaying(false); setToolProgress(parseInt(e.target.value) / 1000); }}
-                  className="w-full h-[3px] rounded-full appearance-none cursor-pointer"
+                  className="w-full h-[3px] rounded-full appearance-none cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
                   style={{
                     accentColor: "var(--ss-accent)",
                     background: `linear-gradient(to right, var(--ss-violet) 0%, var(--ss-cyan) ${toolProgress * 100}%, var(--ss-input-bg) ${toolProgress * 100}%)`,
@@ -547,7 +548,9 @@ export default function GcodeViewerPanel({
                 <div className="flex items-center gap-2 mt-2">
                   <button
                     onClick={() => { if (toolProgress >= 1) setToolProgress(0); setIsPlaying(p => !p); }}
-                    className="flex items-center justify-center w-8 h-8 rounded-lg transition-all active:scale-95 border"
+                    className="flex items-center justify-center w-8 h-8 rounded-lg transition-all active:scale-95 border focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+                    title={isPlaying ? "Pause simulation" : "Play simulation"}
+                    aria-label={isPlaying ? "Pause simulation" : "Play simulation"}
                     style={{
                       backgroundColor: isPlaying ? "var(--ss-accent-soft)" : "transparent",
                       borderColor: isPlaying ? "rgba(132,204,22,0.3)" : "var(--ss-border)",
@@ -562,19 +565,24 @@ export default function GcodeViewerPanel({
                   <div className="flex flex-col">
                     <button
                       onClick={() => { setToolProgress(0); setIsPlaying(false); }}
-                      className="text-[9px] transition-colors rounded px-1 text-left"
+                      className="text-[9px] transition-colors rounded px-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+                      title="Reset simulation"
+                      aria-label="Reset simulation"
                       style={{ color: "var(--ss-text-muted)" }}
                     >
                       ↤ Reset
                     </button>
                   </div>
                   <div className="flex-1" />
-                  <div className="ss-segment">
+                  <div className="ss-segment" role="group" aria-label="Playback speed">
                     {[0.5, 1, 2, 5].map(s => (
                       <button
                         key={s}
                         onClick={() => setPlaySpeed(s)}
-                        className={`ss-segment-btn ${playSpeed === s ? "active" : ""}`}
+                        className={`ss-segment-btn ${playSpeed === s ? "active" : ""} focus-visible:outline focus-visible:outline-2 focus-visible:outline-white`}
+                        aria-pressed={playSpeed === s}
+                        aria-label={`Playback speed ${s}x`}
+                        title={`Playback speed ${s}x`}
                         style={{ fontSize: 10, padding: "3px 6px" }}
                       >{s}×</button>
                     ))}
@@ -640,7 +648,7 @@ export default function GcodeViewerPanel({
           <div className="rounded-xl shadow-2xl w-96 p-5 animate-fade-in" style={{ backgroundColor: "var(--ss-surface)", border: "1px solid var(--ss-border)" }}>
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-base" style={{ color: "var(--ss-text)" }}>Import Door List</h3>
-              <button onClick={() => { setShowImportModal(false); setPendingFile(null); }} className="p-1 rounded opacity-50 hover:opacity-100 transition-opacity">
+              <button onClick={() => { setShowImportModal(false); setPendingFile(null); }} className="p-1 rounded opacity-50 hover:opacity-100 transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-white" aria-label="Close import dialog" title="Close">
                 &times;
               </button>
             </div>
