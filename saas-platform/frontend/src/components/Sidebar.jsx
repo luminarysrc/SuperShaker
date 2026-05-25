@@ -73,8 +73,8 @@ export default function Sidebar({
             color: "#FFFFFF",
             border: "2px solid var(--ss-violet)",
           }}
-          title={user?.name || "User Profile"}
-          aria-label={user?.name || "User Profile"}>
+          aria-label={user?.name || "User Profile"}
+          title={user?.name || "User Profile"}>
           {(user?.name || "U")[0].toUpperCase()}
         </button>
 
@@ -111,8 +111,8 @@ export default function Sidebar({
             border: "1px solid " + (showMachinePanel ? "var(--ss-violet)" : "var(--ss-border)"),
             color: showMachinePanel ? "var(--ss-violet)" : "var(--ss-text-muted)",
           }}
-          title="Machine Profiles"
-          aria-label="Machine Profiles">
+          aria-label="Machine Profiles"
+          title="Machine Profiles">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="3"/>
