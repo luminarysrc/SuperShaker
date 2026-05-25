@@ -1,0 +1,3 @@
+## 2024-05-17 - Icon-only Button Accessibility
+**Learning:** This app frequently uses icon-only buttons (like user profile toggles, theme switchers, machine profile options, and table delete buttons) which were missing `aria-label` attributes and explicitly hiding focus outlines with `focus:outline-none`, breaking screen reader usability and keyboard navigation visibility.
+**Action:** Always verify that icon-only buttons include an `aria-label` (or dynamically computed label like `aria-label={"Delete part " + d.id}`) and replace `focus:outline-none` with Tailwind's `focus-visible:ring-2 focus-visible:outline-none` to ensure keyboard focus states are clearly visible without showing focus rings on mouse clicks.
