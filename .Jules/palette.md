@@ -1,3 +1,3 @@
-## 2024-05-18 - Missing ARIA Labels and Focus States on Icon-Only Buttons
-**Learning:** I found a consistent accessibility issue pattern across this app's components: icon-only buttons (like those in the sidebar and toolbars) lack `aria-label` attributes and proper keyboard focus states (`focus:outline-none` is often used without a visible alternative).
-**Action:** When working on UI components in this app, always ensure icon-only buttons include an `aria-label` and visible keyboard focus states (e.g., using Tailwind's `focus-visible:ring-2 focus-visible:outline-none`).
+## 2024-05-21 - Icon Button Accessibility
+**Learning:** Found an accessibility issue pattern in the app's components (like Sidebar and ThemeToggle) where icon-only buttons relied solely on `title` attributes for tooltips, lacking `aria-label`s for screen readers. Additionally, Tailwind's `focus:outline-none` was used aggressively, breaking keyboard navigation.
+**Action:** Always ensure icon-only buttons have an explicit `aria-label` and a visible focus state (e.g., `focus-visible:ring-2`) for keyboard accessibility. Remove `focus:outline-none` unless a custom focus state is properly implemented.

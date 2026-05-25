@@ -13,7 +13,7 @@ export default function ThemeToggle() {
       onClick={toggleTheme}
       title={isDark ? "Switch to light mode" : "Switch to dark mode"}
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-      className="relative w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-200 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ss-accent)]"
+      className="relative w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-200 group focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:outline-none"
       style={{
         backgroundColor: isDark ? "var(--ss-card)" : "var(--ss-input-bg)",
         border: "1px solid var(--ss-border)",
