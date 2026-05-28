@@ -49,19 +49,10 @@ echo "Deploying from source..."
 # We run from the project root so the Dockerfile can see all directories
 cd "$PROJECT_ROOT"
 
-IMAGE="gcr.io/$PROJECT_ID/$SERVICE_NAME:latest"
-echo "Building container image using Cloud Build..."
-gcloud builds submit --tag $IMAGE -f deploy/gcp/Dockerfile .
-
-echo "Deploying image to Cloud Run..."
-gcloud run deploy $SERVICE_NAME \
-    --image $IMAGE \
-    --region $REGION \
-    --allow-unauthenticated \
-    --port 8080 \
-    --min-instances 0 \
-    --max-instances 10 \
-    --quiet
+echo "Building and deploying container image using Cloud Build..."
+# Use the cloudbuild.yaml to build, push, and deploy all at once.
+# This ensures it uses the logging options and avoids the service_account bug.
+gcloud builds submit --config cloudbuild.yaml --substitutions COMMIT_SHA=manual-$(date +%s) .
 
 echo "========================================================"
 echo "Deployment initiated/completed! Check the URL above."
