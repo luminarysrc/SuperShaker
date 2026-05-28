@@ -42,7 +42,7 @@ function PartDetailPanel({ part, onClose, onEdit }) {
           <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: ts.stroke }} />
           <span className="text-xs font-bold uppercase tracking-widest" style={{ color: ts.label }}>{part.type}</span>
         </div>
-        <button onClick={onClose} className="text-lg leading-none opacity-50 hover:opacity-100" style={{ color: "var(--ss-text-muted)" }}>×</button>
+        <button onClick={onClose} aria-label="Close" className="text-lg leading-none opacity-50 hover:opacity-100 focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:outline-none rounded" style={{ color: "var(--ss-text-muted)" }}>×</button>
       </div>
       <div className="text-center py-3 rounded-xl mb-3" style={{ backgroundColor: `${ts.stroke}18`, border: `1px solid ${ts.stroke}33` }}>
         <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: ts.label }}>Part ID</p>
