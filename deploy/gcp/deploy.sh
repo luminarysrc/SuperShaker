@@ -53,12 +53,22 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
     --role="roles/artifactregistry.repoAdmin" --condition=None --quiet > /dev/null
 
 # Cloud Build needs permissions to deploy to Cloud Run
+# For older projects, Cloud Build uses the legacy SA
 gcloud projects add-iam-policy-binding $PROJECT_ID \
     --member="serviceAccount:$CLOUDBUILD_SA" \
     --role="roles/run.admin" --condition=None --quiet > /dev/null
 
 gcloud projects add-iam-policy-binding $PROJECT_ID \
     --member="serviceAccount:$CLOUDBUILD_SA" \
+    --role="roles/iam.serviceAccountUser" --condition=None --quiet > /dev/null
+
+# For newer projects, Cloud Build uses the Compute Engine Default SA
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+    --member="serviceAccount:$COMPUTE_SA" \
+    --role="roles/run.admin" --condition=None --quiet > /dev/null
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+    --member="serviceAccount:$COMPUTE_SA" \
     --role="roles/iam.serviceAccountUser" --condition=None --quiet > /dev/null
 
 echo "Deploying from source..."
