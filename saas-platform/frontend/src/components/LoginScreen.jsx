@@ -189,10 +189,10 @@ export default function LoginScreen({ onLogin }) {
             <div>
               <label htmlFor="login-email" className="block text-[11px] font-medium mb-1.5 uppercase tracking-wider"
                      style={{ color: "var(--ss-text-muted)" }}>
-                Email
+                Username
               </label>
               <input
-                type="email"
+                type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="ss-input w-full py-3 px-4 text-sm"
@@ -200,7 +200,7 @@ export default function LoginScreen({ onLogin }) {
                   borderRadius: "10px",
                   backgroundColor: isDark ? "rgba(255,255,255,0.04)" : "#f4f4f5",
                 }}
-                placeholder="you@company.com"
+                placeholder="admin"
                 required
                 id="login-email"
               />
