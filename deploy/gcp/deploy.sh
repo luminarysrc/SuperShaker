@@ -35,23 +35,27 @@ COMPUTE_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
 # Grant the default compute service account permissions to read the uploaded source and write logs/images
 gcloud projects add-iam-policy-binding $PROJECT_ID \
     --member="serviceAccount:$COMPUTE_SA" \
-    --role="roles/storage.objectAdmin" --quiet > /dev/null
+    --role="roles/storage.objectAdmin" --condition=None --quiet > /dev/null
 
 gcloud projects add-iam-policy-binding $PROJECT_ID \
     --member="serviceAccount:$COMPUTE_SA" \
-    --role="roles/artifactregistry.writer" --quiet > /dev/null
+    --role="roles/artifactregistry.writer" --condition=None --quiet > /dev/null
 
 gcloud projects add-iam-policy-binding $PROJECT_ID \
     --member="serviceAccount:$COMPUTE_SA" \
-    --role="roles/logging.logWriter" --quiet > /dev/null
+    --role="roles/logging.logWriter" --condition=None --quiet > /dev/null
 
 echo "Deploying from source..."
 # We run from the project root so the Dockerfile can see all directories
 cd "$PROJECT_ROOT"
 
+IMAGE="gcr.io/$PROJECT_ID/$SERVICE_NAME:latest"
+echo "Building container image using Cloud Build..."
+gcloud builds submit --tag $IMAGE -f deploy/gcp/Dockerfile .
+
+echo "Deploying image to Cloud Run..."
 gcloud run deploy $SERVICE_NAME \
-    --source . \
-    --dockerfile deploy/gcp/Dockerfile \
+    --image $IMAGE \
     --region $REGION \
     --allow-unauthenticated \
     --port 8080 \

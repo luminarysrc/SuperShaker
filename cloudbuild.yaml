@@ -15,3 +15,6 @@ steps:
       - 'supershaker'
       - '--image=gcr.io/$PROJECT_ID/supershaker:$COMMIT_SHA'
       - '--region=us-central1'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
