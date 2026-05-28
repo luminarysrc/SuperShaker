@@ -617,9 +617,9 @@ from fastapi.responses import Response
 
 @router.post("/labels/pdf")
 @limiter.limit("10/minute")
-async def create_labels_pdf(request: Request, req: LabelRequest):
+def create_labels_pdf(request: Request, req: LabelRequest):
     logger.info(f"Generating PDF labels for order {req.order_id}")
-    pdf_buffer = await run_in_threadpool(generate_labels_pdf, req, _state["settings"])
+    pdf_buffer = generate_labels_pdf(req, _state["settings"])
     return Response(
         content=pdf_buffer.getvalue(),
         media_type="application/pdf",
@@ -628,14 +628,14 @@ async def create_labels_pdf(request: Request, req: LabelRequest):
 
 @router.get("/labels/pdf")
 @limiter.limit("10/minute")
-async def create_labels_pdf_get(request: Request):
+def create_labels_pdf_get(request: Request):
     order_id = _state["settings"].get("order_id", "")
     logger.info(f"Generating PDF labels (GET) for order {order_id}")
     req = LabelRequest(
         order_id=order_id,
         doors=_state["doors"]
     )
-    pdf_buffer = await run_in_threadpool(generate_labels_pdf, req, _state["settings"])
+    pdf_buffer = generate_labels_pdf(req, _state["settings"])
     return Response(
         content=pdf_buffer.getvalue(),
         media_type="application/pdf",
@@ -649,14 +649,13 @@ from cutting_map import generate_cutting_map_pdf
 
 @router.get("/cutting-map/pdf")
 @limiter.limit("10/minute")
-async def create_cutting_map_pdf(request: Request):
+def create_cutting_map_pdf(request: Request):
     if not _state["nesting_result"] or not _state["nesting_result"]["sheets"]:
         raise HTTPException(400, "No nesting result. Run nesting first.")
     s = _state["settings"]
     order_id = s.get("order_id", "")
     logger.info(f"Generating Cutting Map PDF for order {order_id}")
-    pdf_buffer = await run_in_threadpool(
-        generate_cutting_map_pdf,
+    pdf_buffer = generate_cutting_map_pdf(
         sheets=_state["nesting_result"]["sheets"],
         sheets_meta=_state["nesting_result"]["sheets_meta"],
         mat_z=s["mat_z"], margin=s["margin"],
