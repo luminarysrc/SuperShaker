@@ -371,7 +371,8 @@ export default function GcodeViewerPanel({
             onClick={() => setFitTrigger(t => t + 1)}
             disabled={!displayData && !nestingResult}
             title="Fit scene to view"
-            className="h-10 px-3 rounded-lg transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-30 disabled:pointer-events-none"
+            aria-label="Fit scene to view"
+            className="h-10 px-3 rounded-lg transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-30 disabled:pointer-events-none focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-white"
             style={toolbarBtnStyle}
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -405,9 +406,10 @@ export default function GcodeViewerPanel({
         {/* Excel Batch Upload */}
         <button
           onClick={() => { setPendingFile(null); setShowImportModal(true); }}
-          className="w-10 h-10 rounded-lg cursor-pointer transition-all flex items-center justify-center active:scale-95 disabled:opacity-30"
+          className="w-10 h-10 rounded-lg cursor-pointer transition-all flex items-center justify-center active:scale-95 disabled:opacity-30 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-white"
           style={toolbarBtnStyle}
           title="Import CSV/Excel Door List"
+          aria-label="Import CSV/Excel Door List"
           disabled={isUploadingExcel}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
@@ -419,7 +421,7 @@ export default function GcodeViewerPanel({
 
         {/* G-code Upload */}
         <label
-          className="w-10 h-10 rounded-lg cursor-pointer transition-all flex items-center justify-center active:scale-95"
+          className="w-10 h-10 rounded-lg cursor-pointer transition-all flex items-center justify-center active:scale-95 focus-within:ring-2 focus-within:outline-none focus-within:ring-white"
           style={toolbarBtnStyle}
           title="Upload G-code file"
         >
@@ -427,16 +429,17 @@ export default function GcodeViewerPanel({
                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
           </svg>
-          <input type="file" accept=".nc,.gcode,.ngc,.txt" className="hidden" onChange={handleFileUpload} />
+          <input type="file" accept=".nc,.gcode,.ngc,.txt" className="sr-only" aria-label="Upload G-code file" onChange={handleFileUpload} />
         </label>
 
         {/* Download */}
         <button
           onClick={handleDownload}
           disabled={!displayText}
-          className="w-10 h-10 rounded-lg transition-all flex items-center justify-center active:scale-95 disabled:opacity-30 disabled:pointer-events-none"
+          className="w-10 h-10 rounded-lg transition-all flex items-center justify-center active:scale-95 disabled:opacity-30 disabled:pointer-events-none focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-white"
           style={toolbarBtnStyle}
           title="Download G-code"
+          aria-label="Download G-code"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
