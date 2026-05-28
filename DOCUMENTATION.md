@@ -130,7 +130,7 @@ Once deployed, the terminal will output the live HTTPS URL for the SaaS platform
 ### Default Login
 When accessing the deployed platform, you will be prompted to log in. The default administrative credentials are:
 - **Username:** `admin`
-- **Password:** `luminary`
+- **Password:** `supershaker2026`
 
 ---
 
