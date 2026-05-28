@@ -25,8 +25,8 @@ fi
 echo "Setting gcloud project..."
 gcloud config set project $PROJECT_ID --quiet
 
-echo "Enabling necessary APIs (Cloud Run, Cloud Build, Artifact Registry)..."
-gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com --quiet
+echo "Enabling necessary APIs (Cloud Run, Cloud Build, Artifact Registry, Resource Manager)..."
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com cloudresourcemanager.googleapis.com --quiet
 
 echo "Configuring IAM permissions for Cloud Build..."
 PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format="value(projectNumber)")
