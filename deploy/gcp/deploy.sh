@@ -56,6 +56,13 @@ echo "Deploying from source..."
 # We run from the project root so the Dockerfile can see all directories
 cd "$PROJECT_ROOT"
 
+echo "Ensuring Artifact Registry repository 'supershaker' exists..."
+gcloud artifacts repositories create supershaker \
+    --repository-format=docker \
+    --location=$REGION \
+    --description="SuperShaker Docker images" \
+    --quiet || true
+
 echo "Building and deploying container image using Cloud Build..."
 # Use the cloudbuild.yaml to build, push, and deploy all at once.
 # This ensures it uses the logging options and avoids the service_account bug.
