@@ -286,6 +286,7 @@ def do_nesting(doors, sheet_w, sheet_h, margin, kerf,
                 'w': d['w'] + kerf, 'h': d['h'] + kerf,
                 'orig_w': d['w'], 'orig_h': d['h'],
                 'grain': d.get('grain', 'None'),
+                'rail_position': d.get('rail_position'),
             })
 
     base_funcs = [
@@ -714,158 +715,158 @@ def generate_gcode_for_sheet(
                 if cx_max < cx_min or cy_max < cy_min:
                     continue
 
-            pocket_depth_val = z_top - z_bottom
-            if not do_rough_pass:
-                num_passes = 1
-                pass_depth = pocket_depth_val
-            else:
-                num_passes = 2
-                pass_depth = pocket_depth_val / 2.0
-
-            cl.append(f"(TYPE: {d['type']} | POCKET ID {d['id']}  {d['orig_w']:.0f}x{d['orig_h']:.0f})")
-
-            _op1_is_ring = (d['type'] == 'Shaker Step' and pocket_depth2 > 0)
-            for pass_idx in range(num_passes):
-                current_z = z_top - pass_depth * (pass_idx + 1)
-                current_z = max(current_z, z_bottom)
-
-                is_rough = (pass_idx == 0) and (num_passes > 1)
-                active_strategy = "Snake" if is_rough else pocket_strategy
-                current_step = (t6_dia * 0.90) if is_rough else step_finish
-
-                if _op1_is_ring:
-                    import math as _math
-                    n_ring = max(1, _math.ceil(pocket_step_offset / current_step))
-                    first_ring = True
-                    for ri in range(n_ring):
-                        off_i = ri * current_step
-                        rx0 = cx_min + off_i;  rx1 = cx_max - off_i
-                        ry0 = cy_min + off_i;  ry1 = cy_max - off_i
-                        if rx1 < rx0 or ry1 < ry0: break
-                        if first_ring:
-                            cl.append(f"G0 Z{z_top + 5.0}")
-                            cl.append(f"G0 X{rx0:.3f} Y{ry0:.3f}")
-                            cl.append(f"G1 Z{z_top + 0.5:.3f} F2000")
-                            ramp_x = min(rx0 + 60.0, rx1)
-                            cl.append(f"G1 X{ramp_x:.3f} Z{current_z:.3f} F800")
-                            if ramp_x > rx0:
-                                cl.append(f"G1 X{rx0:.3f} F{t6_feed}")
-                            first_ring = False
-                        else:
-                            cl.append(f"G1 X{rx0:.3f} Y{ry0:.3f} F{t6_feed}")
-                        cl.append(f"G1 X{rx1:.3f} F{t6_feed}")
-                        cl.append(f"G1 Y{ry1:.3f}")
-                        cl.append(f"G1 X{rx0:.3f}")
-                        cl.append(f"G1 Y{ry0:.3f}")
-                    fin_x0 = cx_min + n_ring * current_step
-                    fin_y0 = cy_min + n_ring * current_step
-                    fin_x1 = cx_max - n_ring * current_step
-                    fin_y1 = cy_max - n_ring * current_step
-                    if fin_x1 >= fin_x0 and fin_y1 >= fin_y0:
-                        cl.append(f"G1 X{fin_x0:.3f} Y{fin_y0:.3f} F{t6_feed}")
-                        cl.append(f"G1 X{fin_x1:.3f} F{t6_feed}")
-                        cl.append(f"G1 Y{fin_y1:.3f}")
-                        cl.append(f"G1 X{fin_x0:.3f}")
-                        cl.append(f"G1 Y{fin_y0:.3f}")
-                elif "Snake" in active_strategy:
-                    cl.append(f"G0 Z{z_top + 5.0}")
-                    cl.append(f"G0 X{cx_min:.3f} Y{cy_min:.3f}")
-                    cl.append(f"G1 Z{z_top + 0.5} F2000")
-                    ramp_x = min(cx_min + 60.0, cx_max)
-                    cl.append(f"G1 X{ramp_x:.3f} Z{current_z:.3f} F800")
-                    if ramp_x > cx_min:
-                        cl.append(f"G1 X{cx_min:.3f} F{t6_feed}")
-                    cur_y = cy_min
-                    direction = 1
-                    while cur_y <= cy_max:
-                        if direction == 1:
-                            cl.append(f"G1 X{cx_max:.3f} F{t6_feed}")
-                        else:
-                            cl.append(f"G1 X{cx_min:.3f} F{t6_feed}")
-                        next_y = cur_y + current_step
-                        if next_y > cy_max and cur_y < cy_max:
-                            next_y = cy_max
-                        if next_y <= cy_max or cur_y < cy_max:
-                            cl.append(f"G1 Y{next_y:.3f} F{t6_feed}")
-                        cur_y = next_y
-                        direction *= -1
-                    # Contour pass
-                    cl.append(f"(-- Snake contour pass layer {pass_idx + 1} at Z{current_z:.3f} --)")
-                    cl.append(f"G0 Z{z_top + 2.0}")
-                    cl.append(f"G0 X{cx_min:.3f} Y{cy_min:.3f}")
-                    cl.append(f"G1 Z{current_z:.3f} F800")
-                    cl.append(f"G1 X{cx_max:.3f} F{t6_feed}")
-                    cl.append(f"G1 Y{cy_max:.3f}")
-                    cl.append(f"G1 X{cx_min:.3f}")
-                    cl.append(f"G1 Y{cy_min:.3f}")
-
-                elif "Spiral" in active_strategy:
-                    sp = []
-                    sx0, sx1, sy0, sy1 = cx_min, cx_max, cy_min, cy_max
-                    while sx0 <= sx1 and sy0 <= sy1:
-                        sp.append((sx0, sx1, sy0, sy1))
-                        sx0 += current_step
-                        sx1 -= current_step
-                        sy0 += current_step
-                        sy1 -= current_step
-                    sp.reverse()
-                    for i, (xn, xx, yn, yx) in enumerate(sp):
-                        if i == 0:
-                            cl.append(f"G0 Z{z_top + 5.0}")
-                            cl.append(f"G0 X{xn:.3f} Y{yn:.3f}")
-                            cl.append(f"G1 Z{z_top + 0.5} F2000")
-                            rl = min(60.0, xx - xn) if xx > xn else 0
-                            if rl > 5:
-                                cl.append(f"G1 X{xn + rl:.3f} Z{current_z:.3f} F800")
-                                cl.append(f"G1 X{xn:.3f} F{t6_feed}")
+                pocket_depth_val = z_top - z_bottom
+                if not do_rough_pass:
+                    num_passes = 1
+                    pass_depth = pocket_depth_val
+                else:
+                    num_passes = 2
+                    pass_depth = pocket_depth_val / 2.0
+    
+                cl.append(f"(TYPE: {d['type']} | POCKET ID {d['id']}  {d['orig_w']:.0f}x{d['orig_h']:.0f})")
+    
+                _op1_is_ring = (d['type'] == 'Shaker Step' and pocket_depth2 > 0)
+                for pass_idx in range(num_passes):
+                    current_z = z_top - pass_depth * (pass_idx + 1)
+                    current_z = max(current_z, z_bottom)
+    
+                    is_rough = (pass_idx == 0) and (num_passes > 1)
+                    active_strategy = "Snake" if is_rough else pocket_strategy
+                    current_step = (t6_dia * 0.90) if is_rough else step_finish
+    
+                    if _op1_is_ring:
+                        import math as _math
+                        n_ring = max(1, _math.ceil(pocket_step_offset / current_step))
+                        first_ring = True
+                        for ri in range(n_ring):
+                            off_i = ri * current_step
+                            rx0 = cx_min + off_i;  rx1 = cx_max - off_i
+                            ry0 = cy_min + off_i;  ry1 = cy_max - off_i
+                            if rx1 < rx0 or ry1 < ry0: break
+                            if first_ring:
+                                cl.append(f"G0 Z{z_top + 5.0}")
+                                cl.append(f"G0 X{rx0:.3f} Y{ry0:.3f}")
+                                cl.append(f"G1 Z{z_top + 0.5:.3f} F2000")
+                                ramp_x = min(rx0 + 60.0, rx1)
+                                cl.append(f"G1 X{ramp_x:.3f} Z{current_z:.3f} F800")
+                                if ramp_x > rx0:
+                                    cl.append(f"G1 X{rx0:.3f} F{t6_feed}")
+                                first_ring = False
                             else:
-                                cl.append(f"G1 Z{current_z:.3f} F400")
-                        else:
-                            cl.append(f"G1 X{xn:.3f} Y{yn:.3f} F{t6_feed}")
-                        if xn == xx and yn == yx:
-                            cl.append(f"G1 X{xn:.3f} Y{yn:.3f} F{t6_feed}")
-                        elif xn == xx:
-                            cl.append(f"G1 Y{yx:.3f} F{t6_feed}")
-                            cl.append(f"G1 Y{yn:.3f}")
-                        elif yn == yx:
-                            cl.append(f"G1 X{xx:.3f} F{t6_feed}")
-                            cl.append(f"G1 X{xn:.3f}")
-                        else:
+                                cl.append(f"G1 X{rx0:.3f} Y{ry0:.3f} F{t6_feed}")
+                            cl.append(f"G1 X{rx1:.3f} F{t6_feed}")
+                            cl.append(f"G1 Y{ry1:.3f}")
+                            cl.append(f"G1 X{rx0:.3f}")
+                            cl.append(f"G1 Y{ry0:.3f}")
+                        fin_x0 = cx_min + n_ring * current_step
+                        fin_y0 = cy_min + n_ring * current_step
+                        fin_x1 = cx_max - n_ring * current_step
+                        fin_y1 = cy_max - n_ring * current_step
+                        if fin_x1 >= fin_x0 and fin_y1 >= fin_y0:
+                            cl.append(f"G1 X{fin_x0:.3f} Y{fin_y0:.3f} F{t6_feed}")
+                            cl.append(f"G1 X{fin_x1:.3f} F{t6_feed}")
+                            cl.append(f"G1 Y{fin_y1:.3f}")
+                            cl.append(f"G1 X{fin_x0:.3f}")
+                            cl.append(f"G1 Y{fin_y0:.3f}")
+                    elif "Snake" in active_strategy:
+                        cl.append(f"G0 Z{z_top + 5.0}")
+                        cl.append(f"G0 X{cx_min:.3f} Y{cy_min:.3f}")
+                        cl.append(f"G1 Z{z_top + 0.5} F2000")
+                        ramp_x = min(cx_min + 60.0, cx_max)
+                        cl.append(f"G1 X{ramp_x:.3f} Z{current_z:.3f} F800")
+                        if ramp_x > cx_min:
+                            cl.append(f"G1 X{cx_min:.3f} F{t6_feed}")
+                        cur_y = cy_min
+                        direction = 1
+                        while cur_y <= cy_max:
+                            if direction == 1:
+                                cl.append(f"G1 X{cx_max:.3f} F{t6_feed}")
+                            else:
+                                cl.append(f"G1 X{cx_min:.3f} F{t6_feed}")
+                            next_y = cur_y + current_step
+                            if next_y > cy_max and cur_y < cy_max:
+                                next_y = cy_max
+                            if next_y <= cy_max or cur_y < cy_max:
+                                cl.append(f"G1 Y{next_y:.3f} F{t6_feed}")
+                            cur_y = next_y
+                            direction *= -1
+                        # Contour pass
+                        cl.append(f"(-- Snake contour pass layer {pass_idx + 1} at Z{current_z:.3f} --)")
+                        cl.append(f"G0 Z{z_top + 2.0}")
+                        cl.append(f"G0 X{cx_min:.3f} Y{cy_min:.3f}")
+                        cl.append(f"G1 Z{current_z:.3f} F800")
+                        cl.append(f"G1 X{cx_max:.3f} F{t6_feed}")
+                        cl.append(f"G1 Y{cy_max:.3f}")
+                        cl.append(f"G1 X{cx_min:.3f}")
+                        cl.append(f"G1 Y{cy_min:.3f}")
+    
+                    elif "Spiral" in active_strategy:
+                        sp = []
+                        sx0, sx1, sy0, sy1 = cx_min, cx_max, cy_min, cy_max
+                        while sx0 <= sx1 and sy0 <= sy1:
+                            sp.append((sx0, sx1, sy0, sy1))
+                            sx0 += current_step
+                            sx1 -= current_step
+                            sy0 += current_step
+                            sy1 -= current_step
+                        sp.reverse()
+                        for i, (xn, xx, yn, yx) in enumerate(sp):
+                            if i == 0:
+                                cl.append(f"G0 Z{z_top + 5.0}")
+                                cl.append(f"G0 X{xn:.3f} Y{yn:.3f}")
+                                cl.append(f"G1 Z{z_top + 0.5} F2000")
+                                rl = min(60.0, xx - xn) if xx > xn else 0
+                                if rl > 5:
+                                    cl.append(f"G1 X{xn + rl:.3f} Z{current_z:.3f} F800")
+                                    cl.append(f"G1 X{xn:.3f} F{t6_feed}")
+                                else:
+                                    cl.append(f"G1 Z{current_z:.3f} F400")
+                            else:
+                                cl.append(f"G1 X{xn:.3f} Y{yn:.3f} F{t6_feed}")
+                            if xn == xx and yn == yx:
+                                cl.append(f"G1 X{xn:.3f} Y{yn:.3f} F{t6_feed}")
+                            elif xn == xx:
+                                cl.append(f"G1 Y{yx:.3f} F{t6_feed}")
+                                cl.append(f"G1 Y{yn:.3f}")
+                            elif yn == yx:
+                                cl.append(f"G1 X{xx:.3f} F{t6_feed}")
+                                cl.append(f"G1 X{xn:.3f}")
+                            else:
+                                cl.append(f"G1 X{xx:.3f} F{t6_feed}")
+                                cl.append(f"G1 Y{yx:.3f}")
+                                cl.append(f"G1 X{xn:.3f}")
+                                cl.append(f"G1 Y{yn:.3f}")
+    
+                    elif "Climb" in active_strategy or "CCW" in active_strategy:
+                        sp = []
+                        sx0, sx1, sy0, sy1 = cx_min, cx_max, cy_min, cy_max
+                        while sx0 <= sx1 and sy0 <= sy1:
+                            sp.append((sx0, sx1, sy0, sy1))
+                            sx0 += current_step
+                            sx1 -= current_step
+                            sy0 += current_step
+                            sy1 -= current_step
+                        for i, (xn, xx, yn, yx) in enumerate(sp):
+                            if i == 0:
+                                cl.append(f"G0 Z{z_top + 5.0}")
+                                cl.append(f"G0 X{xn:.3f} Y{yn:.3f}")
+                                cl.append(f"G1 Z{z_top + 0.5} F2000")
+                                rl = min(60.0, xx - xn) if xx > xn else 0
+                                if rl > 5:
+                                    cl.append(f"G1 X{xn + rl:.3f} Z{current_z:.3f} F800")
+                                    cl.append(f"G1 X{xn:.3f} F{t6_feed}")
+                                else:
+                                    cl.append(f"G1 Z{current_z:.3f} F400")
+                            else:
+                                cl.append(f"G1 X{xn:.3f} Y{yn:.3f} F{t6_feed}")
                             cl.append(f"G1 X{xx:.3f} F{t6_feed}")
                             cl.append(f"G1 Y{yx:.3f}")
                             cl.append(f"G1 X{xn:.3f}")
                             cl.append(f"G1 Y{yn:.3f}")
-
-                elif "Climb" in active_strategy or "CCW" in active_strategy:
-                    sp = []
-                    sx0, sx1, sy0, sy1 = cx_min, cx_max, cy_min, cy_max
-                    while sx0 <= sx1 and sy0 <= sy1:
-                        sp.append((sx0, sx1, sy0, sy1))
-                        sx0 += current_step
-                        sx1 -= current_step
-                        sy0 += current_step
-                        sy1 -= current_step
-                    for i, (xn, xx, yn, yx) in enumerate(sp):
-                        if i == 0:
-                            cl.append(f"G0 Z{z_top + 5.0}")
-                            cl.append(f"G0 X{xn:.3f} Y{yn:.3f}")
-                            cl.append(f"G1 Z{z_top + 0.5} F2000")
-                            rl = min(60.0, xx - xn) if xx > xn else 0
-                            if rl > 5:
-                                cl.append(f"G1 X{xn + rl:.3f} Z{current_z:.3f} F800")
-                                cl.append(f"G1 X{xn:.3f} F{t6_feed}")
-                            else:
-                                cl.append(f"G1 Z{current_z:.3f} F400")
-                        else:
-                            cl.append(f"G1 X{xn:.3f} Y{yn:.3f} F{t6_feed}")
-                        cl.append(f"G1 X{xx:.3f} F{t6_feed}")
-                        cl.append(f"G1 Y{yx:.3f}")
-                        cl.append(f"G1 X{xn:.3f}")
-                        cl.append(f"G1 Y{yn:.3f}")
-
-                if pass_idx == 0 and num_passes > 1:
-                    cl.append(f"G0 Z{z_top + 5.0}")
-
+    
+                    if pass_idx == 0 and num_passes > 1:
+                        cl.append(f"G0 Z{z_top + 5.0}")
+    
             cl.append(f"G0 Z{z_safe}")
             curr_x, curr_y = d['x'] + d['w'] / 2, d['y'] + d['h'] / 2
             cl.append("")

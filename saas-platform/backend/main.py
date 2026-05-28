@@ -144,6 +144,7 @@ class DoorIn(BaseModel):
     qty: int = Field(1, description="Quantity")
     type: str = Field("Shaker", description="Shaker | Shaker Step | Slab | Grooved Slab | Beaded Shaker | Thin Rail Shaker")
     grain: str = Field("None", description="Horizontal | Vertical | None")
+    rail_position: Optional[float] = Field(None, description="Rail position in mm")
 
 
 class DoorOut(BaseModel):
@@ -153,6 +154,7 @@ class DoorOut(BaseModel):
     qty: int
     type: str
     grain: str
+    rail_position: Optional[float] = None
 
 class OffcutIn(BaseModel):
     w: float = Field(..., description="Width mm")
@@ -280,6 +282,7 @@ async def add_door(request: Request, door: DoorIn):
         "w": door.w, "h": door.h,
         "qty": door.qty, "type": door.type,
         "grain": door.grain,
+        "rail_position": door.rail_position,
     }
     _state["next_id"] += 1
     _state["doors"].append(d)
@@ -292,7 +295,7 @@ async def add_door(request: Request, door: DoorIn):
 async def update_door(request: Request, door_id: int, door: DoorIn):
     for d in _state["doors"]:
         if d["id"] == door_id:
-            d.update({"w": door.w, "h": door.h, "qty": door.qty, "type": door.type, "grain": door.grain})
+            d.update({"w": door.w, "h": door.h, "qty": door.qty, "type": door.type, "grain": door.grain, "rail_position": door.rail_position})
             _state["nesting_result"] = None
             return d
     raise HTTPException(404, f"Door {door_id} not found")
@@ -432,6 +435,7 @@ async def import_batch(
                 "w": w, "h": h,
                 "qty": qty, "type": d_type,
                 "grain": d_grain,
+                "rail_position": None
             }
             _state["next_id"] += 1
             _state["doors"].append(d)
