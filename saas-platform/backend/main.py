@@ -407,7 +407,7 @@ async def import_batch(
             d_type = "Shaker"
             if type_col and not pd.isna(row[type_col]):
                 t_val = str(row[type_col]).strip().title()
-                if t_val in ["Shaker", "Shaker Step", "Slab", "Grooved Slab", "Beaded Shaker", "Thin Rail Shaker"]:
+                if t_val in ["Shaker", "Shaker Step", "Slab", "Grooved Slab", "Beaded Shaker", "Thin Rail Shaker", "Glass", "Shaker Rail"]:
                     d_type = t_val
                 elif "Step" in t_val:
                     d_type = "Shaker Step"
@@ -415,6 +415,10 @@ async def import_batch(
                     d_type = "Beaded Shaker"
                 elif "Thin" in t_val:
                     d_type = "Thin Rail Shaker"
+                elif "Rail" in t_val or "Cross" in t_val:
+                    d_type = "Shaker Rail"
+                elif "Glass" in t_val or "Mullion" in t_val:
+                    d_type = "Glass"
                 elif "Groove" in t_val:
                     d_type = "Grooved Slab"
                 elif "Slab" in t_val or "Flat" in t_val:

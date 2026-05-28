@@ -57,6 +57,8 @@ The platform uses the **Maximal Rectangles** heuristic to pack part rectangles i
    - **Grooved Slab**: Slab door with decorative vertical/horizontal v-grooves.
    - **Beaded Shaker**: Shaker door with a decorative bead detail on the inner frame.
    - **Thin Rail Shaker**: Shaker style featuring narrow outer stiles/rails (e.g., 45mm frame width).
+   - **Shaker Rail**: Shaker door with a horizontal middle cross-rail dividing the inner panel into two separate milled pockets. You can specify a custom `Rail Pos mm` to determine the exact location of the cross rail.
+   - **Glass**: Standard Shaker frame cut out completely through the material, leaving an empty center pocket for a glass insert (no inner panel).
 3. **Manual Adjustments**:
    - **Drag & Drop**: Click and hold a part in the nesting preview canvas to move it.
    - **Rotate**: While dragging, press the **`R`** key to rotate the part 90°.
@@ -99,6 +101,36 @@ The platform uses the **Maximal Rectangles** heuristic to pack part rectangles i
 ### "Nesting Failed"
 - Check that no single part is larger than the specified sheet dimensions.
 - Ensure the sheet margin is not so large that it leaves no room for parts.
+
+---
+
+## 🚀 Deployment
+
+The SuperShaker platform is fully containerized and can be deployed to Google Cloud Run.
+
+### Prerequisites
+1. Install the [Google Cloud CLI](https://cloud.google.com/sdk/docs/install).
+2. Authenticate using `gcloud auth login`.
+3. Set your project using `gcloud config set project <PROJECT_ID>`.
+
+### Deploying
+Simply run the provided deployment script from the root of the repository:
+```bash
+bash deploy/gcp/deploy.sh
+```
+This script will automatically:
+- Enable all necessary GCP APIs (Cloud Run, Cloud Build, Artifact Registry).
+- Configure the correct IAM permissions for the Cloud Build service account.
+- Provision a Docker Artifact Registry.
+- Submit the multi-stage `Dockerfile` to Cloud Build.
+- Deploy the resulting image to a fully managed, serverless Cloud Run instance.
+
+Once deployed, the terminal will output the live HTTPS URL for the SaaS platform.
+
+### Default Login
+When accessing the deployed platform, you will be prompted to log in. The default administrative credentials are:
+- **Username:** `admin`
+- **Password:** `luminary`
 
 ---
 
