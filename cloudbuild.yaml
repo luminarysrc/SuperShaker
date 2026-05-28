@@ -14,4 +14,4 @@ steps:
       - 'deploy'
       - 'supershaker'
       - '--image=gcr.io/$PROJECT_ID/supershaker:$COMMIT_SHA'
-      - '--region=us-central1' # Change to your region
+      - '--region=us-central1'
