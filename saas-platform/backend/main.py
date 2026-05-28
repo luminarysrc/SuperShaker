@@ -543,15 +543,14 @@ async def calc_params(request: Request, req: CalcParamsRequest):
 
 @router.post("/nest")
 @limiter.limit("10/minute")
-async def nest(request: Request):
+def nest(request: Request):
     if not _state["doors"]:
         raise HTTPException(400, "No parts to nest")
 
     s = _state["settings"]
     logger.info(f"Starting nesting for {len(_state['doors'])} doors")
     try:
-        result = await run_in_threadpool(
-            do_nesting,
+        result = do_nesting(
             doors=_state["doors"],
             offcuts=_state["offcuts"],
             sheet_w=s["sheet_w"], sheet_h=s["sheet_h"],
