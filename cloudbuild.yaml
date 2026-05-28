@@ -1,0 +1,17 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-f', 'deploy/gcp/Dockerfile', '-t', 'gcr.io/$PROJECT_ID/supershaker:$COMMIT_SHA', '.']
+
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/supershaker:$COMMIT_SHA']
+
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'supershaker'
+      - '--image=gcr.io/$PROJECT_ID/supershaker:$COMMIT_SHA'
+      - '--region=us-central1' # Change to your region
