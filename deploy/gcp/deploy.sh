@@ -32,6 +32,8 @@ echo "Configuring IAM permissions for Cloud Build..."
 PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format="value(projectNumber)")
 COMPUTE_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
 
+CLOUDBUILD_SA="${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com"
+
 # Grant the default compute service account permissions to read the uploaded source and write logs/images
 gcloud projects add-iam-policy-binding $PROJECT_ID \
     --member="serviceAccount:$COMPUTE_SA" \
@@ -44,6 +46,11 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
 gcloud projects add-iam-policy-binding $PROJECT_ID \
     --member="serviceAccount:$COMPUTE_SA" \
     --role="roles/logging.logWriter" --condition=None --quiet > /dev/null
+
+# Cloud Build needs permissions to create the repository on push
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+    --member="serviceAccount:$CLOUDBUILD_SA" \
+    --role="roles/artifactregistry.repoAdmin" --condition=None --quiet > /dev/null
 
 echo "Deploying from source..."
 # We run from the project root so the Dockerfile can see all directories
