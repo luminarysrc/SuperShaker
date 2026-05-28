@@ -673,7 +673,7 @@ async def create_cutting_map_pdf(request: Request):
 
 @router.post("/generate-gcode")
 @limiter.limit("10/minute")
-async def generate_gcode(request: Request, req: GenerateRequest):
+def generate_gcode(request: Request, req: GenerateRequest):
     nr = _state["nesting_result"]
     if not nr or not nr["sheets"]:
         raise HTTPException(400, "Run nesting first")
@@ -693,8 +693,7 @@ async def generate_gcode(request: Request, req: GenerateRequest):
     for idx in indices:
         meta = nr["sheets_meta"][idx]
         try:
-            gcode = await run_in_threadpool(
-                generate_gcode_for_sheet,
+            gcode = generate_gcode_for_sheet(
                 sheet_doors=sheets[idx],
                 sheet_idx=idx,
                 total_sheets=len(sheets),
