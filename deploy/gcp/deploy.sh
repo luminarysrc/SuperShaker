@@ -52,6 +52,15 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
     --member="serviceAccount:$CLOUDBUILD_SA" \
     --role="roles/artifactregistry.repoAdmin" --condition=None --quiet > /dev/null
 
+# Cloud Build needs permissions to deploy to Cloud Run
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+    --member="serviceAccount:$CLOUDBUILD_SA" \
+    --role="roles/run.admin" --condition=None --quiet > /dev/null
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+    --member="serviceAccount:$CLOUDBUILD_SA" \
+    --role="roles/iam.serviceAccountUser" --condition=None --quiet > /dev/null
+
 echo "Deploying from source..."
 # We run from the project root so the Dockerfile can see all directories
 cd "$PROJECT_ROOT"
