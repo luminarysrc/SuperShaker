@@ -325,6 +325,11 @@ export function parseGcode(gcodeText) {
     "Shaker": [],
     "Shaker Step": [],
     "Slab": [],
+    "Grooved Slab": [],
+    "Beaded Shaker": [],
+    "Thin Rail Shaker": [],
+    "Shaker Rail": [],
+    "Glass": [],
     "default": [],
   };
 

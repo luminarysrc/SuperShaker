@@ -178,6 +178,8 @@ class SettingsModel(BaseModel):
     pocket_step_offset: Optional[float] = None
     chamfer_depth: Optional[float] = None
     outer_chamfer_depth: Optional[float] = None
+    rabbet_w: Optional[float] = None
+    rabbet_d: Optional[float] = None
     corner_r: Optional[float] = None
     feed_xy: Optional[int] = None
     t6_name: Optional[str] = None
@@ -704,6 +706,8 @@ async def generate_gcode(request: Request, req: GenerateRequest):
                 pocket_step_offset=s["pocket_step_offset"],
                 chamfer_depth=s["chamfer_depth"],
                 outer_chamfer_depth=s["outer_chamfer_depth"],
+                rabbet_w=s["rabbet_w"],
+                rabbet_d=s["rabbet_d"],
                 t6_name=s["t6_name"], t6_dia=s["t6_dia"],
                 t6_type=s["t6_type"],
                 t6_spindle=s["t6_spindle"], t6_feed=s["t6_feed"],

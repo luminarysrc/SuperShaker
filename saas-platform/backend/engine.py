@@ -613,6 +613,7 @@ def generate_gcode_for_sheet(
     # Facade params
     frame_w, pocket_depth, pocket_depth2=0.0, pocket_step_offset=5.0,
     chamfer_depth=0.5, outer_chamfer_depth=0.5,
+    rabbet_w=12.7, rabbet_d=6.35,
     # T6 params
     t6_name="T6", t6_dia=31.75, t6_type="PCD",
     t6_spindle=18000, t6_feed=6000,
@@ -656,6 +657,15 @@ def generate_gcode_for_sheet(
     if step_finish <= 0:
         step_finish = t6_r
 
+    # Small Part Auto-correction
+    for d in sheet_doors:
+        if d['type'] in ('Shaker', 'Shaker Step', 'Shaker Rail', 'Beaded Shaker'):
+            local_frame_w = frame_w
+            pw = d['w'] - 2 * local_frame_w
+            ph = d['h'] - 2 * local_frame_w
+            if pw < t6_dia or ph < t6_dia:
+                d['type'] = 'Slab'
+
     cl = []
     cl.append("%")
     cl.append(f"(NESTED FASADY — SHEET {sheet_idx + 1}/{total_sheets})")
@@ -676,19 +686,33 @@ def generate_gcode_for_sheet(
         cl.append(f"S{t6_spindle} M3")
         cl.append("")
 
-        shaker_doors = [d for d in sheet_doors if d['type'] in ('Shaker', 'Shaker Step', 'Beaded Shaker', 'Thin Rail Shaker')]
+        shaker_doors = [d for d in sheet_doors if d['type'] in ('Shaker', 'Shaker Step', 'Beaded Shaker', 'Shaker Rail')]
         for d in optimize_path(shaker_doors, curr_x, curr_y):
-            local_frame_w = 45.0 if d['type'] == 'Thin Rail Shaker' else frame_w
-            px_min = d['x'] + local_frame_w
-            px_max = d['x'] + d['w'] - local_frame_w
-            py_min = d['y'] + local_frame_w
-            py_max = d['y'] + d['h'] - local_frame_w
-            cx_min = px_min + t6_r
-            cx_max = px_max - t6_r
-            cy_min = py_min + t6_r
-            cy_max = py_max - t6_r
-            if cx_max < cx_min or cy_max < cy_min:
-                continue
+            local_frame_w = frame_w
+            _b_px_min = d['x'] + local_frame_w
+            _b_px_max = d['x'] + d['w'] - local_frame_w
+            _b_py_min = d['y'] + local_frame_w
+            _b_py_max = d['y'] + d['h'] - local_frame_w
+            if d['type'] == 'Shaker Rail':
+                _rp_op1  = d.get('rail_position', d['h'] / 2.0)
+                _rt_op1  = d['y'] + _rp_op1 + local_frame_w / 2.0
+                _rb_op1  = d['y'] + _rp_op1 - local_frame_w / 2.0
+                _op1_pkt = []
+                if _rb_op1 - _b_py_min > t6_r * 2:
+                    _op1_pkt.append((_b_px_min, _b_px_max, _b_py_min, _rb_op1))
+                if _b_py_max - _rt_op1 > t6_r * 2:
+                    _op1_pkt.append((_b_px_min, _b_px_max, _rt_op1, _b_py_max))
+            else:
+                _op1_pkt = [(_b_px_min, _b_px_max, _b_py_min, _b_py_max)]
+
+            for _op1_pi, (_pm1, _pM1, _qm1, _qM1) in enumerate(_op1_pkt):
+                px_min = _pm1; px_max = _pM1; py_min = _qm1; py_max = _qM1
+                cx_min = px_min + t6_r
+                cx_max = px_max - t6_r
+                cy_min = py_min + t6_r
+                cy_max = py_max - t6_r
+                if cx_max < cx_min or cy_max < cy_min:
+                    continue
 
             pocket_depth_val = z_top - z_bottom
             if not do_rough_pass:
@@ -700,6 +724,7 @@ def generate_gcode_for_sheet(
 
             cl.append(f"(TYPE: {d['type']} | POCKET ID {d['id']}  {d['orig_w']:.0f}x{d['orig_h']:.0f})")
 
+            _op1_is_ring = (d['type'] == 'Shaker Step' and pocket_depth2 > 0)
             for pass_idx in range(num_passes):
                 current_z = z_top - pass_depth * (pass_idx + 1)
                 current_z = max(current_z, z_bottom)
@@ -708,7 +733,41 @@ def generate_gcode_for_sheet(
                 active_strategy = "Snake" if is_rough else pocket_strategy
                 current_step = (t6_dia * 0.90) if is_rough else step_finish
 
-                if "Snake" in active_strategy:
+                if _op1_is_ring:
+                    import math as _math
+                    n_ring = max(1, _math.ceil(pocket_step_offset / current_step))
+                    first_ring = True
+                    for ri in range(n_ring):
+                        off_i = ri * current_step
+                        rx0 = cx_min + off_i;  rx1 = cx_max - off_i
+                        ry0 = cy_min + off_i;  ry1 = cy_max - off_i
+                        if rx1 < rx0 or ry1 < ry0: break
+                        if first_ring:
+                            cl.append(f"G0 Z{z_top + 5.0}")
+                            cl.append(f"G0 X{rx0:.3f} Y{ry0:.3f}")
+                            cl.append(f"G1 Z{z_top + 0.5:.3f} F2000")
+                            ramp_x = min(rx0 + 60.0, rx1)
+                            cl.append(f"G1 X{ramp_x:.3f} Z{current_z:.3f} F800")
+                            if ramp_x > rx0:
+                                cl.append(f"G1 X{rx0:.3f} F{t6_feed}")
+                            first_ring = False
+                        else:
+                            cl.append(f"G1 X{rx0:.3f} Y{ry0:.3f} F{t6_feed}")
+                        cl.append(f"G1 X{rx1:.3f} F{t6_feed}")
+                        cl.append(f"G1 Y{ry1:.3f}")
+                        cl.append(f"G1 X{rx0:.3f}")
+                        cl.append(f"G1 Y{ry0:.3f}")
+                    fin_x0 = cx_min + n_ring * current_step
+                    fin_y0 = cy_min + n_ring * current_step
+                    fin_x1 = cx_max - n_ring * current_step
+                    fin_y1 = cy_max - n_ring * current_step
+                    if fin_x1 >= fin_x0 and fin_y1 >= fin_y0:
+                        cl.append(f"G1 X{fin_x0:.3f} Y{fin_y0:.3f} F{t6_feed}")
+                        cl.append(f"G1 X{fin_x1:.3f} F{t6_feed}")
+                        cl.append(f"G1 Y{fin_y1:.3f}")
+                        cl.append(f"G1 X{fin_x0:.3f}")
+                        cl.append(f"G1 Y{fin_y0:.3f}")
+                elif "Snake" in active_strategy:
                     cl.append(f"G0 Z{z_top + 5.0}")
                     cl.append(f"G0 X{cx_min:.3f} Y{cy_min:.3f}")
                     cl.append(f"G1 Z{z_top + 0.5} F2000")
@@ -861,6 +920,83 @@ def generate_gcode_for_sheet(
                         cl.append(f"G1 Y{cy2_min:.3f}")
                     cl.append(f"G0 Z{z_top + 5.0}")
 
+
+    # ── OP1b: GLASS — rabbet (T3) + through opening (T3) ──────────────
+    glass_doors = [d for d in sheet_doors if d['type'] == 'Glass']
+    if glass_doors:
+        _t3_r_gl  = kerf / 2.0
+        _t3_d_gl  = kerf
+        _t3s_gl   = t3_spindle
+        _t3f_gl   = t3_feed_cut
+        _t3fp_gl  = max(200, _t3f_gl // 6)
+        # Use parameterized rabbet_w and rabbet_d
+        z_rabbet = z_top - rabbet_d
+
+        cl.append("(--- OP1b-A: GLASS RABBET T3 [from frame_w inward by rabbet_w] ---)")
+        cl.append(f"{t3_tool_t} M6")
+        cl.append(f"S{_t3s_gl} M3")
+        cl.append("")
+
+        for d in optimize_path(glass_doors, curr_x, curr_y):
+            _fw   = frame_w
+            _rbw  = rabbet_w
+            _rbd  = rabbet_d
+            _zrbt = z_rabbet
+
+            import math
+            _n_passes  = max(1, int(math.ceil(_rbw / _t3_d_gl)))
+            _step_pass = _rbw / _n_passes
+
+            cl.append(f"(GLASS RABBET ID {d['id']} {d['orig_w']:.0f}x{d['orig_h']:.0f}"
+                      f"  frame_w={_fw:.1f} rabbet_w={_rbw:.1f} rabbet_d={_rbd:.1f}"
+                      f"  Z={_zrbt:.3f}  passes={_n_passes})")
+
+            for _pi in range(_n_passes):
+                _off = (_fw - _rbw) + _pi * _step_pass + _t3_r_gl
+                _rx0 = d['x'] + _off
+                _rx1 = d['x'] + d['w'] - _off
+                _ry0 = d['y'] + _off
+                _ry1 = d['y'] + d['h'] - _off
+                if _rx1 <= _rx0 or _ry1 <= _ry0:
+                    break
+                _ramp_x1 = round(min(_rx0 + 60.0, _rx1), 3)
+                cl.append(f"(  pass {_pi+1}/{_n_passes} offset={_off:.2f})")
+                cl.append(f"G0 X{_rx0:.3f} Y{_ry0:.3f} Z{z_safe:.1f}")
+                cl.append(f"G1 Z{z_top:.3f} F{_t3fp_gl}")
+                cl.append(f"G1 X{_ramp_x1:.3f} Z{_zrbt:.3f} F800")
+                cl.append(f"G1 X{_rx0:.3f} F{_t3f_gl}")
+                cl.append(f"G1 X{_rx1:.3f} F{_t3f_gl}")
+                cl.append(f"G1 Y{_ry1:.3f}")
+                cl.append(f"G1 X{_rx0:.3f}")
+                cl.append(f"G1 Y{_ry0:.3f}")
+                cl.append(f"G0 Z{z_safe:.1f}")
+            curr_x = d['x'] + _fw; curr_y = d['y'] + _fw
+
+        cl.append("")
+        cl.append("(--- OP1b-B: GLASS OPENING through-cut T3 [1 pass Z=-0.2] ---)")
+        cl.append("")
+
+        for d in optimize_path(glass_doors, curr_x, curr_y):
+            _fw  = frame_w
+            _ox0 = d['x'] + _fw + _t3_r_gl
+            _ox1 = d['x'] + d['w'] - _fw - _t3_r_gl
+            _oy0 = d['y'] + _fw + _t3_r_gl
+            _oy1 = d['y'] + d['h'] - _fw - _t3_r_gl
+            if _ox1 <= _ox0 or _oy1 <= _oy0:
+                continue
+            _ramp_x1_o = round(min(_ox0 + 60.0, _ox1), 3)
+            cl.append(f"(GLASS OPENING ID {d['id']} {d['orig_w']:.0f}x{d['orig_h']:.0f} Z=-0.200)")
+            cl.append(f"G0 X{_ox0:.3f} Y{_oy0:.3f} Z{z_safe:.1f}")
+            cl.append(f"G1 Z{z_top:.3f} F{_t3fp_gl}")
+            cl.append(f"G1 X{_ramp_x1_o:.3f} Z{-0.2:.3f} F800")
+            cl.append(f"G1 X{_ox0:.3f} F{_t3f_gl}")
+            cl.append(f"G1 X{_ox1:.3f} F{_t3f_gl}")
+            cl.append(f"G1 Y{_oy1:.3f}")
+            cl.append(f"G1 X{_ox0:.3f}")
+            cl.append(f"G1 Y{_oy0:.3f}")
+            cl.append(f"G0 Z{z_safe:.1f}")
+            curr_x = _ox0; curr_y = _oy0
+
     # ── OP2: PERIMETER + CORNERS T2 D4 ──────────────────────────────
     if do_corners_rest:
         cl.append("(--- OP2: PERIMETER + CORNERS REST T2 D4 ---)")
@@ -878,7 +1014,7 @@ def generate_gcode_for_sheet(
 
         shaker_doors = [d for d in sheet_doors if d['type'] in ('Shaker', 'Shaker Step', 'Beaded Shaker', 'Thin Rail Shaker')]
         for d in optimize_path(shaker_doors, curr_x, curr_y):
-            local_frame_w = 45.0 if d['type'] == 'Thin Rail Shaker' else frame_w
+            local_frame_w = frame_w
             px_min = d['x'] + local_frame_w
             px_max = d['x'] + d['w'] - local_frame_w
             py_min = d['y'] + local_frame_w
@@ -965,7 +1101,7 @@ def generate_gcode_for_sheet(
         cl.append(f"S{t5_spindle} M3")
         cl.append("")
         for d in optimize_path(sheet_doors, curr_x, curr_y):
-            local_frame_w = 45.0 if d['type'] == 'Thin Rail Shaker' else frame_w
+            local_frame_w = frame_w
             px_min = d['x'] + local_frame_w
             px_max = d['x'] + d['w'] - local_frame_w
             py_min = d['y'] + local_frame_w
@@ -975,7 +1111,7 @@ def generate_gcode_for_sheet(
             oy_min = d['y']
             oy_max = d['y'] + d['h']
             t5_buf = []
-            if d['type'] in ('Shaker', 'Shaker Step', 'Thin Rail Shaker', 'Beaded Shaker'):
+            if d['type'] in ('Shaker', 'Shaker Step', 'Beaded Shaker'):
                 if do_french_miter or _do_inner:
                     _z_cham1 = z_chamfer if _do_inner else z_top
                     curr_x, curr_y = _combined_miter_chamfer(
@@ -1067,7 +1203,26 @@ def generate_gcode_for_sheet(
         _tab_feed = max(300, t3_feed_cut // 6)
         _z_cut = -0.2
 
-        doors_sorted = sorted(sheet_doors, key=lambda d: d['orig_w'] * d['orig_h'])
+        # Shared-side detection
+        def _get_shared(d, all_doors, kerf, tol):
+            sh = {'L': False, 'R': False, 'T': False, 'B': False}
+            for nb in all_doors:
+                if nb['id'] == d['id']: continue
+                ov_y = nb['y'] < d['y']+d['h'] and nb['y']+nb['h'] > d['y']
+                ov_x = nb['x'] < d['x']+d['w'] and nb['x']+nb['w'] > d['x']
+                if ov_y and abs(nb['x'] - (d['x']+d['w']+kerf)) < tol:   sh['R'] = True
+                if ov_y and abs((nb['x']+nb['w']) - (d['x']-kerf)) < tol: sh['L'] = True
+                if ov_x and abs(nb['y'] - (d['y']+d['h']+kerf)) < tol:   sh['T'] = True
+                if ov_x and abs((nb['y']+nb['h']) - (d['y']-kerf)) < tol: sh['B'] = True
+            return sh
+        
+        _shared_cache = {d['id']: _get_shared(d, sheet_doors, kerf, 0.5) for d in sheet_doors}
+        
+        def _sort_key(d):
+            sc = sum(_shared_cache[d['id']].values())
+            return (sc, d['orig_w'] * d['orig_h'])
+            
+        doors_sorted = sorted(sheet_doors, key=_sort_key)
         for d in optimize_path(doors_sorted, curr_x, curr_y):
             ox_min = d['x'] - 3.0
             ox_max = d['x'] + d['w'] + 3.0
@@ -1075,30 +1230,26 @@ def generate_gcode_for_sheet(
             oy_max = d['y'] + d['h'] + 3.0
             rx = out_r + 3.0
 
-            # Determine if tabs should be applied to this part
             _part_area = d['orig_w'] * d['orig_h']
             _use_tabs = (
                 do_tabs
                 and d.get('is_small', False)
                 and _part_area <= tab_min_area
             )
-            # Number of tabs per straight side — 1 for very small, 2 for moderately small
             _n_tabs = 1 if _part_area <= tab_min_area * 0.25 else 2
 
-            # Entry side detection
+            sh = _shared_cache[d['id']]
             dl = d['x'] - mg_val
             dr = (sheet_w - mg_val) - (d['x'] + d['w'])
             db = d['y'] - mg_val
             dt = (sheet_h - mg_val) - (d['y'] + d['h'])
-            mn = min(dl, dr, db, dt)
-            if mn == dl:
-                es = 'R'
-            elif mn == dr:
-                es = 'L'
-            elif mn == db:
-                es = 'T'
-            else:
-                es = 'B'
+            
+            side_priority = sorted([('R', dl), ('L', dr), ('T', db), ('B', dt)], key=lambda x: x[1])
+            es = side_priority[0][0]
+            for _side, _dist in side_priority:
+                if not sh[_side]:
+                    es = _side
+                    break
 
             _tab_note = " [TABS]" if _use_tabs else ""
             cl.append(f"(TYPE: {d['type']} | T3 ID {d['id']}  entry={es}{_tab_note})")
@@ -1265,6 +1416,15 @@ def _combined_miter_chamfer(buf, xmin, xmax, ymin, ymax,
 # ════════════════════════════════════════════════════════════════════════
 
 def _generate_common_line_cutout(sheet_doors, sheet_w, sheet_h, margin, t3_tool_t, t3_spindle, t3_feed_cut, kerf, z_top, z_safe, curr_x, curr_y):
+    # Small Part Auto-correction
+    for d in sheet_doors:
+        if d['type'] in ('Shaker', 'Shaker Step', 'Shaker Rail', 'Beaded Shaker'):
+            local_frame_w = frame_w
+            pw = d['w'] - 2 * local_frame_w
+            ph = d['h'] - 2 * local_frame_w
+            if pw < t6_dia or ph < t6_dia:
+                d['type'] = 'Slab'
+
     cl = []
     cl.append("(--- OP4: CUTOUT T3 D6 [COMMON LINE] ---)")
     cl.append(f"{t3_tool_t} M6")

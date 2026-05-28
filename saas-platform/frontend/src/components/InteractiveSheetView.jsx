@@ -387,9 +387,25 @@ export default function InteractiveSheetView({ nestingResult }) {
                 style={{ cursor: "grab", opacity: isDraggingThis ? 0 : 1 }}>
                 {part.is_small && <rect x={px} y={py} width={pw} height={ph} fill="url(#isv-hatch)" fillOpacity={0.6} />}
                 <rect x={px} y={py} width={pw} height={ph} fill={ts.fill} stroke={ts.stroke} strokeWidth={isSel ? 2 : 1} rx={2} />
-                {["Shaker", "Shaker Step", "Beaded Shaker", "Thin Rail Shaker"].includes(part.type) && pw > 80 && ph > 80 && (() => {
+                {["Shaker", "Shaker Step", "Beaded Shaker", "Thin Rail Shaker", "Shaker Rail", "Glass"].includes(part.type) && pw > 80 && ph > 80 && (() => {
                   const fw = toLen(part.type === "Thin Rail Shaker" ? 45 : 65);
-                  return <rect x={px + fw} y={py + fw} width={Math.max(0, pw - fw * 2)} height={Math.max(0, ph - fw * 2)} fill="none" stroke={ts.stroke} strokeWidth={0.6} strokeDasharray="3 3" opacity={0.4} />;
+                  const innerW = Math.max(0, pw - fw * 2);
+                  const innerH = Math.max(0, ph - fw * 2);
+                  if (part.type === "Shaker Rail") {
+                     const rp = toLen(part.rail_position || part.orig_h / 2);
+                     const rpY = part.rotated ? pw - rp : rp;
+                     const railH = fw;
+                     return (
+                        <g>
+                           <rect x={px + fw} y={py + fw} width={innerW} height={Math.max(0, ph - rpY - railH/2 - fw)} fill="none" stroke={ts.stroke} strokeWidth={0.6} strokeDasharray="3 3" opacity={0.4} />
+                           <rect x={px + fw} y={py + ph - rpY + railH/2} width={innerW} height={Math.max(0, rpY - railH/2 - fw)} fill="none" stroke={ts.stroke} strokeWidth={0.6} strokeDasharray="3 3" opacity={0.4} />
+                        </g>
+                     );
+                  }
+                  if (part.type === "Glass") {
+                     return <rect x={px + fw} y={py + fw} width={innerW} height={innerH} fill={ts.fill} stroke={ts.stroke} strokeWidth={1} strokeDasharray="5 5" opacity={0.6} />;
+                  }
+                  return <rect x={px + fw} y={py + fw} width={innerW} height={innerH} fill="none" stroke={ts.stroke} strokeWidth={0.6} strokeDasharray="3 3" opacity={0.4} />;
                 })()}
                 {showLabel && (
                   <>

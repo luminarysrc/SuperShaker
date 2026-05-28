@@ -300,6 +300,8 @@ function SheetBoxes({ nestingResult, settings }) {
     "Grooved Slab":     "#14B8A6", // teal
     "Beaded Shaker":    "#A855F7", // purple
     "Thin Rail Shaker": "#F43F5E", // rose red
+    "Shaker Rail":      "#EAB308", // yellow
+    "Glass":            "#38BDF8", // sky blue
   };
 
   return (

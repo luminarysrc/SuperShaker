@@ -340,6 +340,8 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, onNe
     "Grooved Slab":     { text: "#14B8A6", border: "rgba(20,184,166,0.3)", bg: "rgba(20,184,166,0.08)" },
     "Beaded Shaker":    { text: "#A855F7", border: "rgba(168,85,247,0.3)", bg: "rgba(168,85,247,0.08)" },
     "Thin Rail Shaker": { text: "#F43F5E", border: "rgba(244,63,94,0.3)",  bg: "rgba(244,63,94,0.08)" },
+    "Shaker Rail":      { text: "#EAB308", border: "rgba(234,179,8,0.3)", bg: "rgba(234,179,8,0.08)" },
+    "Glass":            { text: "#38BDF8", border: "rgba(56,189,248,0.3)", bg: "rgba(56,189,248,0.08)" },
   };
 
   // ═══════════════════════════════════════════════════════
@@ -482,9 +484,19 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, onNe
                     <option value="Grooved Slab">Grooved Slab</option>
                     <option value="Beaded Shaker">Beaded Shaker</option>
                     <option value="Thin Rail Shaker">Thin Rail Shaker</option>
+                    <option value="Shaker Rail">Shaker Rail</option>
+                    <option value="Glass">Glass</option>
                   </select>
                 </div>
               </div>
+              {newDoor.type === "Shaker Rail" && (
+                <div className="flex gap-2 items-center mt-2 animate-fade-in">
+                  <label className="text-[10px] w-16" style={{ color: "var(--ss-text-muted)" }}>Rail Pos {unitLabel}</label>
+                  <input type="number" value={toDisplay(newDoor.rail_position || newDoor.h / 2)}
+                    onChange={e => setNewDoor(p => ({...p, rail_position: fromDisplay(parseFloat(e.target.value) || 0)}))}
+                    className="ss-input flex-1 text-xs" />
+                </div>
+              )}
 
               {/* Facade Preview */}
               <div className="rounded-lg p-3 flex gap-3 items-start animate-fade-in" key={newDoor.type}
@@ -551,6 +563,25 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, onNe
                       <line x1="70" y1="47" x2="76" y2="52" stroke="#F43F5E" strokeWidth="0.5" strokeOpacity="0.3"/>
                     </svg>
                   )}
+                  {newDoor.type === "Shaker Rail" && (
+                    <svg width="80" height="56" viewBox="0 0 80 56" fill="none">
+                      <rect x="4" y="4" width="72" height="48" rx="2" stroke="#EAB308" strokeWidth="1.5" strokeOpacity="0.6"/>
+                      <rect x="14" y="12" width="52" height="12" rx="1" stroke="#EAB308" strokeWidth="1" fill="#EAB308" fillOpacity="0.05"/>
+                      <rect x="14" y="32" width="52" height="12" rx="1" stroke="#EAB308" strokeWidth="1" fill="#EAB308" fillOpacity="0.05"/>
+                      <line x1="14" y1="12" x2="4" y2="4" stroke="#EAB308" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="66" y1="12" x2="76" y2="4" stroke="#EAB308" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="14" y1="44" x2="4" y2="52" stroke="#EAB308" strokeWidth="0.5" strokeOpacity="0.3"/>
+                      <line x1="66" y1="44" x2="76" y2="52" stroke="#EAB308" strokeWidth="0.5" strokeOpacity="0.3"/>
+                    </svg>
+                  )}
+                  {newDoor.type === "Glass" && (
+                    <svg width="80" height="56" viewBox="0 0 80 56" fill="none">
+                      <rect x="4" y="4" width="72" height="48" rx="2" stroke="#38BDF8" strokeWidth="1.5" strokeOpacity="0.6"/>
+                      <rect x="14" y="12" width="52" height="32" rx="0" stroke="#38BDF8" strokeWidth="1" fill="#38BDF8" fillOpacity="0.2"/>
+                      <line x1="14" y1="12" x2="66" y2="44" stroke="#38BDF8" strokeWidth="0.5" strokeOpacity="0.4"/>
+                      <line x1="66" y1="12" x2="14" y2="44" stroke="#38BDF8" strokeWidth="0.5" strokeOpacity="0.4"/>
+                    </svg>
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold mb-1" style={{ color: typeColors[newDoor.type]?.text }}>{newDoor.type.toUpperCase()}</p>
@@ -561,6 +592,8 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, onNe
                     {newDoor.type === "Grooved Slab" && "Slab with routed vertical/horizontal grooves. Very trendy in modern kitchens, simple to machine."}
                     {newDoor.type === "Beaded Shaker" && "Existing Shaker + a bead detail routed on the inner frame edge. Popular in traditional/farmhouse styles."}
                     {newDoor.type === "Thin Rail Shaker" && "Same as Shaker but with narrower stiles/rails. Huge in Scandinavian and contemporary design."}
+                    {newDoor.type === "Shaker Rail" && "Shaker with a middle cross rail. Splits the inner panel into two separate milled pockets."}
+                    {newDoor.type === "Glass" && "Glass ready door. Mills a rabbet on the back and cuts completely through the center panel."}
                   </p>
                 </div>
               </div>
@@ -651,6 +684,11 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, onNe
                                 <option value="Shaker">Shaker</option>
                                 <option value="Shaker Step">Shaker Step</option>
                                 <option value="Slab">Slab</option>
+                                <option value="Grooved Slab">Grooved Slab</option>
+                                <option value="Beaded Shaker">Beaded Shaker</option>
+                                <option value="Thin Rail Shaker">Thin Rail Shaker</option>
+                                <option value="Shaker Rail">Shaker Rail</option>
+                                <option value="Glass">Glass</option>
                               </select>
                             ) : (
                               <span
@@ -933,6 +971,10 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, onNe
                 onChange={v => handleSettingsChange("chamfer_depth", fromDisplay(v))} step="0.1" />
               <ParamField label={`Outer chamfer (${unitLabel})`} value={toDisplay(settings.outer_chamfer_depth)}
                 onChange={v => handleSettingsChange("outer_chamfer_depth", fromDisplay(v))} step="0.1" />
+              <ParamField label={`Glass Rabbet W (${unitLabel})`} value={toDisplay(settings.rabbet_w ?? 12.7)}
+                onChange={v => handleSettingsChange("rabbet_w", fromDisplay(v))} step="0.1" />
+              <ParamField label={`Glass Rabbet D (${unitLabel})`} value={toDisplay(settings.rabbet_d ?? 6.35)}
+                onChange={v => handleSettingsChange("rabbet_d", fromDisplay(v))} step="0.1" />
               <ParamField label={`Corner R (${unitLabel})`} value={toDisplay(settings.corner_r)}
                 onChange={v => handleSettingsChange("corner_r", fromDisplay(v))} step="0.1" />
             </ParamSection>
