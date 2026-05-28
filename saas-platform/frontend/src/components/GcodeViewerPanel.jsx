@@ -371,7 +371,8 @@ export default function GcodeViewerPanel({
             onClick={() => setFitTrigger(t => t + 1)}
             disabled={!displayData && !nestingResult}
             title="Fit scene to view"
-            className="h-10 px-3 rounded-lg transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-30 disabled:pointer-events-none"
+            aria-label="Fit scene to view"
+            className="h-10 px-3 rounded-lg transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-30 disabled:pointer-events-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:outline-none"
             style={toolbarBtnStyle}
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -405,9 +406,10 @@ export default function GcodeViewerPanel({
         {/* Excel Batch Upload */}
         <button
           onClick={() => { setPendingFile(null); setShowImportModal(true); }}
-          className="w-10 h-10 rounded-lg cursor-pointer transition-all flex items-center justify-center active:scale-95 disabled:opacity-30"
+          className="w-10 h-10 rounded-lg cursor-pointer transition-all flex items-center justify-center active:scale-95 disabled:opacity-30 focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:outline-none"
           style={toolbarBtnStyle}
           title="Import CSV/Excel Door List"
+          aria-label="Import CSV/Excel Door List"
           disabled={isUploadingExcel}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
@@ -419,9 +421,10 @@ export default function GcodeViewerPanel({
 
         {/* G-code Upload */}
         <label
-          className="w-10 h-10 rounded-lg cursor-pointer transition-all flex items-center justify-center active:scale-95"
+          className="w-10 h-10 rounded-lg cursor-pointer transition-all flex items-center justify-center active:scale-95 focus-within:ring-2 focus-within:ring-lime-500 focus-within:outline-none"
           style={toolbarBtnStyle}
           title="Upload G-code file"
+          aria-label="Upload G-code file"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -434,9 +437,10 @@ export default function GcodeViewerPanel({
         <button
           onClick={handleDownload}
           disabled={!displayText}
-          className="w-10 h-10 rounded-lg transition-all flex items-center justify-center active:scale-95 disabled:opacity-30 disabled:pointer-events-none"
+          className="w-10 h-10 rounded-lg transition-all flex items-center justify-center active:scale-95 disabled:opacity-30 disabled:pointer-events-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:outline-none"
           style={toolbarBtnStyle}
           title="Download G-code"
+          aria-label="Download G-code"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -490,6 +494,8 @@ export default function GcodeViewerPanel({
                 Nesting layout changed — regenerate G-code to update the 3D view
                 <button
                   onClick={() => setNestingDirty(false)}
+                  aria-label="Close"
+                  className="focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:outline-none rounded px-1"
                   style={{ opacity: 0.6, fontSize: 16, lineHeight: 1 }}
                 >×</button>
               </div>
