@@ -30,6 +30,8 @@ Originally developed as a standalone Python Tkinter application, SuperShaker has
   - 🟣 **Purple**: Beaded Shaker profiles
   - 🔴 **Rose/Pink**: Thin Rail Shaker profiles
   - 🟢 **Teal**: Grooved Slab profiles
+  - 🟡 **Yellow**: Shaker Rail profiles
+  - 💠 **Cyan**: Glass profiles
 - **Machine Profile System**: Save and switch between multiple CNC machine configurations (tool diameters, spindle speeds, material types) directly from the sidebar. Perfect for shops with multiple routers or varying bit sets.
 - **Global Unit System (MM/Inch)**: Seamless toggle between Metric (mm) and Imperial (inch) units. The backend maintains data integrity in millimeters while the UI handles high-precision conversion (0.001") for the American market.
 - **Modern User Interface**: A three-section SaaS architecture:
@@ -105,6 +107,19 @@ To start the full prototype locally (both frontend and backend simultaneously), 
 
 - The React frontend will boot at `http://localhost:5173`
 - The FastAPI backend will serve on `http://127.0.0.1:8000` (which is proxied by the frontend).
+
+### Cloud Run Deployment
+
+The SuperShaker platform is fully containerized and can be automatically deployed to Google Cloud Run:
+
+```bash
+bash deploy/gcp/deploy.sh
+```
+This script configures GCP APIs, builds the image via Artifact Registry, and deploys it to a serverless instance.
+
+**Default Administrative Credentials**:
+- **Username:** `admin`
+- **Password:** `luminary`
 
 ---
 
