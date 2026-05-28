@@ -13,6 +13,8 @@ const TYPE_STYLE = {
   "Grooved Slab": { fill: "rgba(20,184,166,0.14)", stroke: "#14B8A6", label: "#2DD4BF" },
   "Beaded Shaker": { fill: "rgba(168,85,247,0.14)", stroke: "#A855F7", label: "#C084FC" },
   "Thin Rail Shaker": { fill: "rgba(244,63,94,0.14)", stroke: "#F43F5E", label: "#FB7185" },
+  "Glass": { fill: "rgba(34,211,238,0.14)", stroke: "#22D3EE", label: "#67E8F9" },
+  "Shaker Rail": { fill: "rgba(234,179,8,0.14)", stroke: "#EAB308", label: "#FDE047" },
   default: { fill: "rgba(143,155,179,0.14)", stroke: "#8F9BB3", label: "#8F9BB3" },
 };
 
@@ -393,14 +395,25 @@ export default function InteractiveSheetView({ nestingResult }) {
                   const innerH = Math.max(0, ph - fw * 2);
                   if (part.type === "Shaker Rail") {
                      const rp = toLen(part.rail_position || part.orig_h / 2);
-                     const rpY = part.rotated ? pw - rp : rp;
-                     const railH = fw;
-                     return (
-                        <g>
-                           <rect x={px + fw} y={py + fw} width={innerW} height={Math.max(0, ph - rpY - railH/2 - fw)} fill="none" stroke={ts.stroke} strokeWidth={0.6} strokeDasharray="3 3" opacity={0.4} />
-                           <rect x={px + fw} y={py + ph - rpY + railH/2} width={innerW} height={Math.max(0, rpY - railH/2 - fw)} fill="none" stroke={ts.stroke} strokeWidth={0.6} strokeDasharray="3 3" opacity={0.4} />
-                        </g>
-                     );
+                     if (part.rotated) {
+                        const railW = fw;
+                        const rpX = rp; // split along physical height (SVG width)
+                        return (
+                           <g>
+                              <rect x={px + fw} y={py + fw} width={Math.max(0, rpX - railW/2 - fw)} height={innerH} fill="none" stroke={ts.stroke} strokeWidth={0.6} strokeDasharray="3 3" opacity={0.4} />
+                              <rect x={px + rpX + railW/2} y={py + fw} width={Math.max(0, pw - rpX - railW/2 - fw)} height={innerH} fill="none" stroke={ts.stroke} strokeWidth={0.6} strokeDasharray="3 3" opacity={0.4} />
+                           </g>
+                        );
+                     } else {
+                        const rpY = rp; // split along physical height (SVG height)
+                        const railH = fw;
+                        return (
+                           <g>
+                              <rect x={px + fw} y={py + fw} width={innerW} height={Math.max(0, ph - rpY - railH/2 - fw)} fill="none" stroke={ts.stroke} strokeWidth={0.6} strokeDasharray="3 3" opacity={0.4} />
+                              <rect x={px + fw} y={py + ph - rpY + railH/2} width={innerW} height={Math.max(0, rpY - railH/2 - fw)} fill="none" stroke={ts.stroke} strokeWidth={0.6} strokeDasharray="3 3" opacity={0.4} />
+                           </g>
+                        );
+                     }
                   }
                   if (part.type === "Glass") {
                      return <rect x={px + fw} y={py + fw} width={innerW} height={innerH} fill={ts.fill} stroke={ts.stroke} strokeWidth={1} strokeDasharray="5 5" opacity={0.6} />;
