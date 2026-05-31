@@ -24,14 +24,14 @@ COPY saas-platform/backend/ ./backend/
 # Copy built frontend from Stage 1
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
-# Copy supervisord config
-COPY deploy/gcp/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+# Copy startup script
+COPY deploy/gcp/start.sh /app/start.sh
 
 # Expose the port Cloud Run will use
 ENV PORT=8080
 EXPOSE 8080
 
-WORKDIR /app/backend
+WORKDIR /app
 
-# Run supervisord to manage all processes
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+# Run bash script to manage all processes
+CMD ["/app/start.sh"]
