@@ -12,7 +12,36 @@ import {
   runNesting, generateFullGcode,
   parseGcode, downloadGcode, downloadLabelsPdf, downloadCuttingMapPdf, updateNestingResult
 } from "../services/EngineClient.js";
+export function parseDimension(str) {
+  if (typeof str === 'number') return str;
+  if (!str) return 0;
+  str = String(str).trim();
+  if (str.includes('-') && str.includes('/')) {
+    str = str.replace('-', ' ');
+  }
+  const parts = str.split(/\s+/);
+  let total = 0;
+  for (const part of parts) {
+    if (part.includes('/')) {
+      const [num, den] = part.split('/');
+      if (den && !isNaN(num) && !isNaN(den)) {
+        total += parseFloat(num) / parseFloat(den);
+      }
+    } else {
+      if (!isNaN(part)) {
+        total += parseFloat(part);
+      }
+    }
+  }
+  return total;
+}
 
+export function formatDimension(num, useInch) {
+  if (num == null || isNaN(num)) return "";
+  if (!useInch) return +(num.toFixed(1));
+  const inchVal = num / 25.4;
+  return +(inchVal.toFixed(3));
+}
 
 function DimensionInput({ valueMm, onChangeMm, useInch, className, placeholder }) {
   const [str, setStr] = useState("");
