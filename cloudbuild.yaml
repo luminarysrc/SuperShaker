@@ -15,6 +15,9 @@ steps:
       - 'supershaker'
       - '--image=us-central1-docker.pkg.dev/$PROJECT_ID/supershaker/supershaker:$COMMIT_SHA'
       - '--region=us-central1'
+      - '--allow-unauthenticated'
+      - '--port=8080'
+      - '--memory=1024Mi'
 
 options:
   logging: CLOUD_LOGGING_ONLY
