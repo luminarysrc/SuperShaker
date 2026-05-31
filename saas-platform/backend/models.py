@@ -7,6 +7,7 @@ class User(SQLModel, table=True):
     email: str = Field(unique=True, index=True)
     hashed_password: str
     is_active: bool = True
+    is_admin: bool = False
 
 class Door(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

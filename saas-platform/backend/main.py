@@ -136,7 +136,7 @@ def on_startup():
         default_email = "admin@supershaker.com"
         admin = session.exec(select(User).where(User.email == default_email)).first()
         if not admin:
-            admin = User(email=default_email, hashed_password=get_password_hash("supershaker2026"), is_active=True)
+            admin = User(email=default_email, hashed_password=get_password_hash("supershaker2026"), is_active=True, is_admin=True)
             session.add(admin)
             session.commit()
             session.refresh(admin)
@@ -269,9 +269,11 @@ class RegisterRequest(BaseModel):
     email: str
     password: str
 
-@public_router.post("/register")
+@router.post("/register")
 @limiter.limit("5/minute")
-async def register(request: Request, req: RegisterRequest, session: Session = Depends(get_session)):
+async def register(request: Request, req: RegisterRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    if not current_user.is_admin:
+        raise HTTPException(403, "Only admins can register new users")
     # Check if user already exists
     existing = session.exec(select(User).where(User.email == req.email)).first()
     if existing:
