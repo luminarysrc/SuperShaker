@@ -8,3 +8,6 @@ python-multipart
 slowapi
 sqlmodel
 sqlmodel
+pyjwt
+passlib[bcrypt]
+cryptography

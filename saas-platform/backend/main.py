@@ -24,17 +24,7 @@ import logging
 import json
 import uuid
 
-# Authentication setup
-AUTH_USER = os.environ.get("AUTH_USER", "admin")
-AUTH_PASS = os.environ.get("AUTH_PASS", "supershaker2026")
-VALID_TOKEN = str(uuid.uuid4())
 
-security = HTTPBearer()
-
-def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    if credentials.credentials != VALID_TOKEN:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-    return credentials.credentials
 
 class JSONFormatter(logging.Formatter):
     def format(self, record):
@@ -59,9 +49,10 @@ from engine import do_nesting, generate_gcode_for_sheet, calc_t6_params
 from label_generator import generate_labels_pdf
 from time_estimator import estimate_machining_time
 
-from sqlmodel import Session, select
+from sqlmodel import Session, select, text
 from database import engine, create_db_and_tables, get_session
-from models import Door, Offcut, Profile
+from models import Door, Offcut, Profile, User
+from auth import get_current_user, create_access_token, verify_password, get_password_hash
 
 
 # ════════════════════════════════════════════════════════════
@@ -78,7 +69,7 @@ app = FastAPI(
 public_router = APIRouter(prefix="/api")
 
 # Protected router for business logic
-router = APIRouter(prefix="/api", dependencies=[Depends(verify_token)])
+router = APIRouter(prefix="/api", dependencies=[Depends(get_current_user)])
 
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
@@ -129,10 +120,30 @@ _nesting_result = None
 @app.on_event("startup")
 def on_startup():
     create_db_and_tables()
+    
+    # Simple migration for SQLite to add user_id column if it doesn't exist
+    with engine.connect() as conn:
+        for table in ["door", "offcut", "profile"]:
+            try:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN user_id INTEGER REFERENCES user(id)"))
+                conn.commit()
+            except Exception:
+                # Column probably already exists or table doesn't exist
+                pass
+                
     with Session(engine) as session:
-        prof = session.exec(select(Profile)).first()
+        # Check if default user exists
+        default_email = "admin@supershaker.com"
+        admin = session.exec(select(User).where(User.email == default_email)).first()
+        if not admin:
+            admin = User(email=default_email, hashed_password=get_password_hash("supershaker2026"), is_active=True)
+            session.add(admin)
+            session.commit()
+            session.refresh(admin)
+            
+        prof = session.exec(select(Profile).where(Profile.user_id == admin.id)).first()
         if not prof:
-            default_prof = Profile(name="Default CNC", is_active=True, settings=_DEFAULT_SETTINGS)
+            default_prof = Profile(name="Default CNC", is_active=True, settings=_DEFAULT_SETTINGS, user_id=admin.id)
             session.add(default_prof)
             session.commit()
 
@@ -251,16 +262,42 @@ class LabelRequest(BaseModel):
 # ════════════════════════════════════════════════════════════
 
 class LoginRequest(BaseModel):
-    username: str
+    email: str
     password: str
+
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+
+@public_router.post("/register")
+@limiter.limit("5/minute")
+async def register(request: Request, req: RegisterRequest, session: Session = Depends(get_session)):
+    # Check if user already exists
+    existing = session.exec(select(User).where(User.email == req.email)).first()
+    if existing:
+        raise HTTPException(400, "Email already registered")
+    
+    new_user = User(email=req.email, hashed_password=get_password_hash(req.password))
+    session.add(new_user)
+    session.commit()
+    session.refresh(new_user)
+    
+    # Initialize a default profile for the user
+    default_prof = Profile(name="Default CNC", is_active=True, settings=_DEFAULT_SETTINGS, user_id=new_user.id)
+    session.add(default_prof)
+    session.commit()
+    
+    return {"ok": True, "message": "User registered successfully"}
 
 @public_router.post("/login")
 @limiter.limit("10/minute")
-async def login(request: Request, req: LoginRequest):
-    if req.username == AUTH_USER and req.password == AUTH_PASS:
-        logger.info(f"Successful login for user {req.username}")
-        return {"token": VALID_TOKEN, "user": {"name": req.username}}
-    logger.warning(f"Failed login attempt for username: {req.username}")
+async def login(request: Request, req: LoginRequest, session: Session = Depends(get_session)):
+    user = session.exec(select(User).where(User.email == req.email)).first()
+    if user and verify_password(req.password, user.hashed_password):
+        token = create_access_token(data={"sub": user.email})
+        logger.info(f"Successful login for user {user.email}")
+        return {"token": token, "user": {"email": user.email}}
+    logger.warning(f"Failed login attempt for email: {req.email}")
     raise HTTPException(401, "Invalid credentials")
 
 
@@ -271,10 +308,10 @@ async def health_check(request: Request):
 
 
 
-def _get_active_settings(session: Session):
-    prof = session.exec(select(Profile).where(Profile.is_active == True)).first()
+def _get_active_settings(session: Session, user_id: int):
+    prof = session.exec(select(Profile).where(Profile.is_active == True, Profile.user_id == user_id)).first()
     if not prof:
-        prof = session.exec(select(Profile)).first()
+        prof = session.exec(select(Profile).where(Profile.user_id == user_id)).first()
     return prof.settings if prof else _DEFAULT_SETTINGS
 
 
@@ -282,15 +319,15 @@ def _get_active_settings(session: Session):
 
 @router.get("/doors")
 @limiter.limit("100/minute")
-async def list_doors(request: Request, session: Session = Depends(get_session)):
-    return session.exec(select(Door)).all()
+async def list_doors(request: Request, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    return session.exec(select(Door).where(Door.user_id == current_user.id)).all()
 
 
 @router.post("/doors")
 @limiter.limit("100/minute")
-async def add_door(request: Request, door: DoorIn, session: Session = Depends(get_session)):
+async def add_door(request: Request, door: DoorIn, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     global _nesting_result
-    d = Door(w=door.w, h=door.h, qty=door.qty, type=door.type, grain=door.grain, rail_position=door.rail_position)
+    d = Door(w=door.w, h=door.h, qty=door.qty, type=door.type, grain=door.grain, rail_position=door.rail_position, user_id=current_user.id)
     session.add(d)
     session.commit()
     session.refresh(d)
@@ -300,9 +337,9 @@ async def add_door(request: Request, door: DoorIn, session: Session = Depends(ge
 
 @router.put("/doors/{door_id}")
 @limiter.limit("100/minute")
-async def update_door(request: Request, door_id: int, door: DoorIn, session: Session = Depends(get_session)):
+async def update_door(request: Request, door_id: int, door: DoorIn, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     global _nesting_result
-    d = session.get(Door, door_id)
+    d = session.exec(select(Door).where(Door.id == door_id, Door.user_id == current_user.id)).first()
     if not d:
         raise HTTPException(404, f"Door {door_id} not found")
     d.w = door.w
@@ -320,9 +357,9 @@ async def update_door(request: Request, door_id: int, door: DoorIn, session: Ses
 
 @router.delete("/doors/{door_id}")
 @limiter.limit("100/minute")
-async def delete_door(request: Request, door_id: int, session: Session = Depends(get_session)):
+async def delete_door(request: Request, door_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     global _nesting_result
-    d = session.get(Door, door_id)
+    d = session.exec(select(Door).where(Door.id == door_id, Door.user_id == current_user.id)).first()
     if d:
         session.delete(d)
         session.commit()
@@ -332,9 +369,9 @@ async def delete_door(request: Request, door_id: int, session: Session = Depends
 
 @router.delete("/doors")
 @limiter.limit("100/minute")
-async def clear_doors(request: Request, session: Session = Depends(get_session)):
+async def clear_doors(request: Request, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     global _nesting_result
-    doors = session.exec(select(Door)).all()
+    doors = session.exec(select(Door).where(Door.user_id == current_user.id)).all()
     for d in doors:
         session.delete(d)
     session.commit()
@@ -345,13 +382,13 @@ async def clear_doors(request: Request, session: Session = Depends(get_session))
 # ── Offcuts CRUD ─────────────────────────────────────────
 
 @router.get("/offcuts")
-async def list_offcuts(session: Session = Depends(get_session)):
-    return session.exec(select(Offcut)).all()
+async def list_offcuts(session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    return session.exec(select(Offcut).where(Offcut.user_id == current_user.id)).all()
 
 @router.post("/offcuts", response_model=OffcutOut)
-async def add_offcut(offcut: OffcutIn, session: Session = Depends(get_session)):
+async def add_offcut(offcut: OffcutIn, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     global _nesting_result
-    new_o = Offcut(w=offcut.w, h=offcut.h, qty=offcut.qty)
+    new_o = Offcut(w=offcut.w, h=offcut.h, qty=offcut.qty, user_id=current_user.id)
     session.add(new_o)
     session.commit()
     session.refresh(new_o)
@@ -359,9 +396,9 @@ async def add_offcut(offcut: OffcutIn, session: Session = Depends(get_session)):
     return new_o
 
 @router.delete("/offcuts/{offcut_id}")
-async def delete_offcut(offcut_id: int, session: Session = Depends(get_session)):
+async def delete_offcut(offcut_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     global _nesting_result
-    o = session.get(Offcut, offcut_id)
+    o = session.exec(select(Offcut).where(Offcut.id == offcut_id, Offcut.user_id == current_user.id)).first()
     if o:
         session.delete(o)
         session.commit()
@@ -377,7 +414,8 @@ async def import_batch(
     file: UploadFile = File(...),
     unit: str = Form("mm"),
     source: str = Form("generic"),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     if not file.filename.endswith((".xlsx", ".csv")):
         raise HTTPException(400, "Invalid file format. Only .xlsx and .csv allowed.")
@@ -458,7 +496,7 @@ async def import_batch(
                 elif "Vert" in g_val:
                     d_grain = "Vertical"
 
-            d = Door(w=w, h=h, qty=qty, type=d_type, grain=d_grain, rail_position=None)
+            d = Door(w=w, h=h, qty=qty, type=d_type, grain=d_grain, rail_position=None, user_id=current_user.id)
             session.add(d)
             added += 1
         except Exception:
@@ -474,16 +512,16 @@ async def import_batch(
 
 @router.get("/settings")
 @limiter.limit("100/minute")
-async def get_settings(request: Request, session: Session = Depends(get_session)):
-    return _get_active_settings(session)
+async def get_settings(request: Request, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    return _get_active_settings(session, current_user.id)
 
 
 @router.put("/settings")
 @limiter.limit("100/minute")
-async def update_settings(request: Request, s: SettingsModel, session: Session = Depends(get_session)):
-    prof = session.exec(select(Profile).where(Profile.is_active == True)).first()
+async def update_settings(request: Request, s: SettingsModel, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    prof = session.exec(select(Profile).where(Profile.is_active == True, Profile.user_id == current_user.id)).first()
     if not prof:
-        prof = session.exec(select(Profile)).first()
+        prof = session.exec(select(Profile).where(Profile.user_id == current_user.id)).first()
     if prof:
         for k, v in s.model_dump(exclude_none=True).items():
             prof.settings[k] = v
@@ -499,9 +537,9 @@ async def update_settings(request: Request, s: SettingsModel, session: Session =
 
 @router.get("/profiles")
 @limiter.limit("100/minute")
-async def list_profiles(request: Request, session: Session = Depends(get_session)):
-    profiles = session.exec(select(Profile)).all()
-    active_profile = session.exec(select(Profile).where(Profile.is_active == True)).first()
+async def list_profiles(request: Request, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    profiles = session.exec(select(Profile).where(Profile.user_id == current_user.id)).all()
+    active_profile = session.exec(select(Profile).where(Profile.is_active == True, Profile.user_id == current_user.id)).first()
     active_id = active_profile.id if active_profile else (profiles[0].id if profiles else None)
     return {
         "profiles": [{"id": p.id, "name": p.name} for p in profiles],
@@ -511,14 +549,14 @@ async def list_profiles(request: Request, session: Session = Depends(get_session
 
 @router.post("/profiles")
 @limiter.limit("100/minute")
-async def create_profile(request: Request, body: ProfileIn, session: Session = Depends(get_session)):
-    current_settings = _get_active_settings(session)
+async def create_profile(request: Request, body: ProfileIn, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    current_settings = _get_active_settings(session, current_user.id)
     # deactivate others
-    others = session.exec(select(Profile)).all()
+    others = session.exec(select(Profile).where(Profile.user_id == current_user.id)).all()
     for o in others:
         o.is_active = False
         session.add(o)
-    new_profile = Profile(name=body.name, is_active=True, settings=current_settings)
+    new_profile = Profile(name=body.name, is_active=True, settings=current_settings, user_id=current_user.id)
     session.add(new_profile)
     session.commit()
     session.refresh(new_profile)
@@ -527,8 +565,8 @@ async def create_profile(request: Request, body: ProfileIn, session: Session = D
 
 @router.put("/profiles/{profile_id}")
 @limiter.limit("100/minute")
-async def rename_profile(request: Request, profile_id: int, body: ProfileIn, session: Session = Depends(get_session)):
-    p = session.get(Profile, profile_id)
+async def rename_profile(request: Request, profile_id: int, body: ProfileIn, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    p = session.exec(select(Profile).where(Profile.id == profile_id, Profile.user_id == current_user.id)).first()
     if not p:
         raise HTTPException(404, f"Profile {profile_id} not found")
     p.name = body.name
@@ -539,34 +577,34 @@ async def rename_profile(request: Request, profile_id: int, body: ProfileIn, ses
 
 @router.delete("/profiles/{profile_id}")
 @limiter.limit("100/minute")
-async def delete_profile(request: Request, profile_id: int, session: Session = Depends(get_session)):
-    p = session.get(Profile, profile_id)
+async def delete_profile(request: Request, profile_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    p = session.exec(select(Profile).where(Profile.id == profile_id, Profile.user_id == current_user.id)).first()
     if not p:
         raise HTTPException(404, f"Profile {profile_id} not found")
-    profiles = session.exec(select(Profile)).all()
+    profiles = session.exec(select(Profile).where(Profile.user_id == current_user.id)).all()
     if len(profiles) <= 1:
         raise HTTPException(400, "Cannot delete the last profile")
     session.delete(p)
     session.commit()
     
     if p.is_active:
-        first = session.exec(select(Profile)).first()
+        first = session.exec(select(Profile).where(Profile.user_id == current_user.id)).first()
         first.is_active = True
         session.add(first)
         session.commit()
         return {"ok": True, "active_id": first.id}
     
-    active = session.exec(select(Profile).where(Profile.is_active == True)).first()
+    active = session.exec(select(Profile).where(Profile.is_active == True, Profile.user_id == current_user.id)).first()
     return {"ok": True, "active_id": active.id if active else None}
 
 
 @router.post("/profiles/{profile_id}/load")
 @limiter.limit("100/minute")
-async def load_profile(request: Request, profile_id: int, session: Session = Depends(get_session)):
-    p = session.get(Profile, profile_id)
+async def load_profile(request: Request, profile_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    p = session.exec(select(Profile).where(Profile.id == profile_id, Profile.user_id == current_user.id)).first()
     if not p:
         raise HTTPException(404, f"Profile {profile_id} not found")
-    others = session.exec(select(Profile)).all()
+    others = session.exec(select(Profile).where(Profile.user_id == current_user.id)).all()
     for o in others:
         o.is_active = False
         session.add(o)
@@ -578,11 +616,11 @@ async def load_profile(request: Request, profile_id: int, session: Session = Dep
 
 @router.post("/profiles/{profile_id}/save")
 @limiter.limit("100/minute")
-async def save_profile(request: Request, profile_id: int, session: Session = Depends(get_session)):
-    p = session.get(Profile, profile_id)
+async def save_profile(request: Request, profile_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    p = session.exec(select(Profile).where(Profile.id == profile_id, Profile.user_id == current_user.id)).first()
     if not p:
         raise HTTPException(404, f"Profile {profile_id} not found")
-    p.settings = _get_active_settings(session)
+    p.settings = _get_active_settings(session, current_user.id)
     session.add(p)
     session.commit()
     return {"ok": True, "id": p.id, "name": p.name}
@@ -600,15 +638,15 @@ async def calc_params(request: Request, req: CalcParamsRequest):
 
 @router.post("/nest")
 @limiter.limit("10/minute")
-def nest(request: Request, session: Session = Depends(get_session)):
+def nest(request: Request, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     global _nesting_result
-    doors_db = session.exec(select(Door)).all()
+    doors_db = session.exec(select(Door).where(Door.user_id == current_user.id)).all()
     if not doors_db:
         raise HTTPException(400, "No parts to nest")
     
     doors = [d.model_dump() for d in doors_db]
-    offcuts = [o.model_dump() for o in session.exec(select(Offcut)).all()]
-    s = _get_active_settings(session)
+    offcuts = [o.model_dump() for o in session.exec(select(Offcut).where(Offcut.user_id == current_user.id)).all()]
+    s = _get_active_settings(session, current_user.id)
     logger.info(f"Starting nesting for {len(doors)} doors")
     try:
         result = do_nesting(
@@ -680,9 +718,9 @@ from fastapi.responses import Response
 
 @router.post("/labels/pdf")
 @limiter.limit("10/minute")
-def create_labels_pdf(request: Request, req: LabelRequest, session: Session = Depends(get_session)):
+def create_labels_pdf(request: Request, req: LabelRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     logger.info(f"Generating PDF labels for order {req.order_id}")
-    pdf_buffer = generate_labels_pdf(req, _get_active_settings(session))
+    pdf_buffer = generate_labels_pdf(req, _get_active_settings(session, current_user.id))
     return Response(
         content=pdf_buffer.getvalue(),
         media_type="application/pdf",
@@ -691,11 +729,11 @@ def create_labels_pdf(request: Request, req: LabelRequest, session: Session = De
 
 @router.get("/labels/pdf")
 @limiter.limit("10/minute")
-def create_labels_pdf_get(request: Request, session: Session = Depends(get_session)):
-    s = _get_active_settings(session)
+def create_labels_pdf_get(request: Request, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    s = _get_active_settings(session, current_user.id)
     order_id = s.get("order_id", "")
     logger.info(f"Generating PDF labels (GET) for order {order_id}")
-    doors = [d.model_dump() for d in session.exec(select(Door)).all()]
+    doors = [d.model_dump() for d in session.exec(select(Door).where(Door.user_id == current_user.id)).all()]
     req = LabelRequest(
         order_id=order_id,
         doors=doors
@@ -714,11 +752,11 @@ from cutting_map import generate_cutting_map_pdf
 
 @router.get("/cutting-map/pdf")
 @limiter.limit("10/minute")
-def create_cutting_map_pdf(request: Request, session: Session = Depends(get_session)):
+def create_cutting_map_pdf(request: Request, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     global _nesting_result
     if not _nesting_result or not _nesting_result["sheets"]:
         raise HTTPException(400, "No nesting result. Run nesting first.")
-    s = _get_active_settings(session)
+    s = _get_active_settings(session, current_user.id)
     order_id = s.get("order_id", "")
     logger.info(f"Generating Cutting Map PDF for order {order_id}")
     pdf_buffer = generate_cutting_map_pdf(
@@ -737,13 +775,13 @@ def create_cutting_map_pdf(request: Request, session: Session = Depends(get_sess
 
 @router.post("/generate-gcode")
 @limiter.limit("10/minute")
-def generate_gcode(request: Request, req: GenerateRequest, session: Session = Depends(get_session)):
+def generate_gcode(request: Request, req: GenerateRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     global _nesting_result
     nr = _nesting_result
     if not nr or not nr["sheets"]:
         raise HTTPException(400, "Run nesting first")
 
-    s = _get_active_settings(session)
+    s = _get_active_settings(session, current_user.id)
     sheets = nr["sheets"]
 
     if req.sheet_index == -1:
