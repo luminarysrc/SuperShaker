@@ -54,9 +54,15 @@ logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
 
+
 from engine import do_nesting, generate_gcode_for_sheet, calc_t6_params
 from label_generator import generate_labels_pdf
 from time_estimator import estimate_machining_time
+
+from sqlmodel import Session, select
+from database import engine, create_db_and_tables, get_session
+from models import Door, Offcut, Profile
+
 
 # ════════════════════════════════════════════════════════════
 #  FastAPI Application
@@ -117,21 +123,19 @@ _DEFAULT_SETTINGS = {
     "shop_rate": 85.0,
 }
 
-_state = {
-    "doors": [],
-    "next_id": 1,
-    "offcuts": [],
-    "next_offcut_id": 1,
-    "nesting_result": None,
-    "settings": copy.deepcopy(_DEFAULT_SETTINGS),
-    "active_profile_id": 1,
-}
 
-# Machine profiles — each stores a full settings snapshot
-_profiles = [
-    {"id": 1, "name": "Default CNC", "settings": copy.deepcopy(_DEFAULT_SETTINGS)},
-]
-_profile_next_id = 2
+_nesting_result = None
+
+@app.on_event("startup")
+def on_startup():
+    create_db_and_tables()
+    with Session(engine) as session:
+        prof = session.exec(select(Profile)).first()
+        if not prof:
+            default_prof = Profile(name="Default CNC", is_active=True, settings=_DEFAULT_SETTINGS)
+            session.add(default_prof)
+            session.commit()
+
 
 
 # ════════════════════════════════════════════════════════════
@@ -266,84 +270,103 @@ async def health_check(request: Request):
     return {"status": "ok", "version": "0.2.0-beta"}
 
 
+
+def _get_active_settings(session: Session):
+    prof = session.exec(select(Profile).where(Profile.is_active == True)).first()
+    if not prof:
+        prof = session.exec(select(Profile)).first()
+    return prof.settings if prof else _DEFAULT_SETTINGS
+
+
 # ── Doors CRUD ───────────────────────────────────────────
 
 @router.get("/doors")
 @limiter.limit("100/minute")
-async def list_doors(request: Request):
-    return _state["doors"]
+async def list_doors(request: Request, session: Session = Depends(get_session)):
+    return session.exec(select(Door)).all()
 
 
 @router.post("/doors")
 @limiter.limit("100/minute")
-async def add_door(request: Request, door: DoorIn):
-    d = {
-        "id": _state["next_id"],
-        "w": door.w, "h": door.h,
-        "qty": door.qty, "type": door.type,
-        "grain": door.grain,
-        "rail_position": door.rail_position,
-    }
-    _state["next_id"] += 1
-    _state["doors"].append(d)
-    _state["nesting_result"] = None
+async def add_door(request: Request, door: DoorIn, session: Session = Depends(get_session)):
+    global _nesting_result
+    d = Door(w=door.w, h=door.h, qty=door.qty, type=door.type, grain=door.grain, rail_position=door.rail_position)
+    session.add(d)
+    session.commit()
+    session.refresh(d)
+    _nesting_result = None
     return d
 
 
 @router.put("/doors/{door_id}")
 @limiter.limit("100/minute")
-async def update_door(request: Request, door_id: int, door: DoorIn):
-    for d in _state["doors"]:
-        if d["id"] == door_id:
-            d.update({"w": door.w, "h": door.h, "qty": door.qty, "type": door.type, "grain": door.grain, "rail_position": door.rail_position})
-            _state["nesting_result"] = None
-            return d
-    raise HTTPException(404, f"Door {door_id} not found")
+async def update_door(request: Request, door_id: int, door: DoorIn, session: Session = Depends(get_session)):
+    global _nesting_result
+    d = session.get(Door, door_id)
+    if not d:
+        raise HTTPException(404, f"Door {door_id} not found")
+    d.w = door.w
+    d.h = door.h
+    d.qty = door.qty
+    d.type = door.type
+    d.grain = door.grain
+    d.rail_position = door.rail_position
+    session.add(d)
+    session.commit()
+    session.refresh(d)
+    _nesting_result = None
+    return d
 
 
 @router.delete("/doors/{door_id}")
 @limiter.limit("100/minute")
-async def delete_door(request: Request, door_id: int):
-    _state["doors"] = [d for d in _state["doors"] if d["id"] != door_id]
-    _state["nesting_result"] = None
+async def delete_door(request: Request, door_id: int, session: Session = Depends(get_session)):
+    global _nesting_result
+    d = session.get(Door, door_id)
+    if d:
+        session.delete(d)
+        session.commit()
+    _nesting_result = None
     return {"ok": True}
 
 
 @router.delete("/doors")
 @limiter.limit("100/minute")
-async def clear_doors(request: Request):
-    _state["doors"] = []
-    _state["next_id"] = 1
-    _state["nesting_result"] = None
+async def clear_doors(request: Request, session: Session = Depends(get_session)):
+    global _nesting_result
+    doors = session.exec(select(Door)).all()
+    for d in doors:
+        session.delete(d)
+    session.commit()
+    _nesting_result = None
     return {"ok": True}
 
 
 # ── Offcuts CRUD ─────────────────────────────────────────
 
 @router.get("/offcuts")
-async def list_offcuts():
-    return _state["offcuts"]
+async def list_offcuts(session: Session = Depends(get_session)):
+    return session.exec(select(Offcut)).all()
 
 @router.post("/offcuts", response_model=OffcutOut)
-async def add_offcut(offcut: OffcutIn):
-    new_o = {
-        "id": _state["next_offcut_id"],
-        "w": offcut.w,
-        "h": offcut.h,
-        "qty": offcut.qty,
-    }
-    _state["next_offcut_id"] += 1
-    _state["offcuts"].append(new_o)
-    _state["nesting_result"] = None
+async def add_offcut(offcut: OffcutIn, session: Session = Depends(get_session)):
+    global _nesting_result
+    new_o = Offcut(w=offcut.w, h=offcut.h, qty=offcut.qty)
+    session.add(new_o)
+    session.commit()
+    session.refresh(new_o)
+    _nesting_result = None
     return new_o
 
 @router.delete("/offcuts/{offcut_id}")
-async def delete_offcut(offcut_id: int):
-    for i, o in enumerate(_state["offcuts"]):
-        if o["id"] == offcut_id:
-            del_o = _state["offcuts"].pop(i)
-            _state["nesting_result"] = None
-            return {"ok": True, "deleted": del_o}
+async def delete_offcut(offcut_id: int, session: Session = Depends(get_session)):
+    global _nesting_result
+    o = session.get(Offcut, offcut_id)
+    if o:
+        session.delete(o)
+        session.commit()
+        _nesting_result = None
+        return {"ok": True, "deleted": o}
     raise HTTPException(404, "Offcut not found")
 
 
@@ -353,7 +376,8 @@ async def import_batch(
     request: Request,
     file: UploadFile = File(...),
     unit: str = Form("mm"),
-    source: str = Form("generic")
+    source: str = Form("generic"),
+    session: Session = Depends(get_session)
 ):
     if not file.filename.endswith((".xlsx", ".csv")):
         raise HTTPException(400, "Invalid file format. Only .xlsx and .csv allowed.")
@@ -434,20 +458,15 @@ async def import_batch(
                 elif "Vert" in g_val:
                     d_grain = "Vertical"
 
-            d = {
-                "id": _state["next_id"],
-                "w": w, "h": h,
-                "qty": qty, "type": d_type,
-                "grain": d_grain,
-                "rail_position": None
-            }
-            _state["next_id"] += 1
-            _state["doors"].append(d)
+            d = Door(w=w, h=h, qty=qty, type=d_type, grain=d_grain, rail_position=None)
+            session.add(d)
             added += 1
         except Exception:
             pass
             
-    _state["nesting_result"] = None
+    session.commit()
+    global _nesting_result
+    _nesting_result = None
     return {"ok": True, "added": added}
 
 
@@ -455,88 +474,118 @@ async def import_batch(
 
 @router.get("/settings")
 @limiter.limit("100/minute")
-async def get_settings(request: Request):
-    return _state["settings"]
+async def get_settings(request: Request, session: Session = Depends(get_session)):
+    return _get_active_settings(session)
 
 
 @router.put("/settings")
 @limiter.limit("100/minute")
-async def update_settings(request: Request, s: SettingsModel):
-    for k, v in s.model_dump(exclude_none=True).items():
-        _state["settings"][k] = v
-    return _state["settings"]
+async def update_settings(request: Request, s: SettingsModel, session: Session = Depends(get_session)):
+    prof = session.exec(select(Profile).where(Profile.is_active == True)).first()
+    if not prof:
+        prof = session.exec(select(Profile)).first()
+    if prof:
+        for k, v in s.model_dump(exclude_none=True).items():
+            prof.settings[k] = v
+        prof.settings = prof.settings.copy()
+        session.add(prof)
+        session.commit()
+        session.refresh(prof)
+        return prof.settings
+    return _DEFAULT_SETTINGS
 
 
 # ── Machine Profiles ─────────────────────────────────────
 
 @router.get("/profiles")
 @limiter.limit("100/minute")
-async def list_profiles(request: Request):
+async def list_profiles(request: Request, session: Session = Depends(get_session)):
+    profiles = session.exec(select(Profile)).all()
+    active_profile = session.exec(select(Profile).where(Profile.is_active == True)).first()
+    active_id = active_profile.id if active_profile else (profiles[0].id if profiles else None)
     return {
-        "profiles": [{"id": p["id"], "name": p["name"]} for p in _profiles],
-        "active_id": _state["active_profile_id"],
+        "profiles": [{"id": p.id, "name": p.name} for p in profiles],
+        "active_id": active_id
     }
 
 
 @router.post("/profiles")
 @limiter.limit("100/minute")
-async def create_profile(request: Request, body: ProfileIn):
-    global _profile_next_id
-    profile = {
-        "id": _profile_next_id,
-        "name": body.name,
-        "settings": copy.deepcopy(_state["settings"]),
-    }
-    _profile_next_id += 1
-    _profiles.append(profile)
-    _state["active_profile_id"] = profile["id"]
-    return {"id": profile["id"], "name": profile["name"]}
+async def create_profile(request: Request, body: ProfileIn, session: Session = Depends(get_session)):
+    current_settings = _get_active_settings(session)
+    # deactivate others
+    others = session.exec(select(Profile)).all()
+    for o in others:
+        o.is_active = False
+        session.add(o)
+    new_profile = Profile(name=body.name, is_active=True, settings=current_settings)
+    session.add(new_profile)
+    session.commit()
+    session.refresh(new_profile)
+    return {"id": new_profile.id, "name": new_profile.name}
 
 
 @router.put("/profiles/{profile_id}")
 @limiter.limit("100/minute")
-async def rename_profile(request: Request, profile_id: int, body: ProfileIn):
-    for p in _profiles:
-        if p["id"] == profile_id:
-            p["name"] = body.name
-            return {"id": p["id"], "name": p["name"]}
-    raise HTTPException(404, f"Profile {profile_id} not found")
+async def rename_profile(request: Request, profile_id: int, body: ProfileIn, session: Session = Depends(get_session)):
+    p = session.get(Profile, profile_id)
+    if not p:
+        raise HTTPException(404, f"Profile {profile_id} not found")
+    p.name = body.name
+    session.add(p)
+    session.commit()
+    return {"id": p.id, "name": p.name}
 
 
 @router.delete("/profiles/{profile_id}")
 @limiter.limit("100/minute")
-async def delete_profile(request: Request, profile_id: int):
-    if len(_profiles) <= 1:
-        raise HTTPException(400, "Cannot delete the last profile")
-    idx = next((i for i, p in enumerate(_profiles) if p["id"] == profile_id), None)
-    if idx is None:
+async def delete_profile(request: Request, profile_id: int, session: Session = Depends(get_session)):
+    p = session.get(Profile, profile_id)
+    if not p:
         raise HTTPException(404, f"Profile {profile_id} not found")
-    _profiles.pop(idx)
-    if _state["active_profile_id"] == profile_id:
-        _state["active_profile_id"] = _profiles[0]["id"]
-        _state["settings"] = copy.deepcopy(_profiles[0]["settings"])
-    return {"ok": True, "active_id": _state["active_profile_id"]}
+    profiles = session.exec(select(Profile)).all()
+    if len(profiles) <= 1:
+        raise HTTPException(400, "Cannot delete the last profile")
+    session.delete(p)
+    session.commit()
+    
+    if p.is_active:
+        first = session.exec(select(Profile)).first()
+        first.is_active = True
+        session.add(first)
+        session.commit()
+        return {"ok": True, "active_id": first.id}
+    
+    active = session.exec(select(Profile).where(Profile.is_active == True)).first()
+    return {"ok": True, "active_id": active.id if active else None}
 
 
 @router.post("/profiles/{profile_id}/load")
 @limiter.limit("100/minute")
-async def load_profile(request: Request, profile_id: int):
-    for p in _profiles:
-        if p["id"] == profile_id:
-            _state["settings"] = copy.deepcopy(p["settings"])
-            _state["active_profile_id"] = profile_id
-            return _state["settings"]
-    raise HTTPException(404, f"Profile {profile_id} not found")
+async def load_profile(request: Request, profile_id: int, session: Session = Depends(get_session)):
+    p = session.get(Profile, profile_id)
+    if not p:
+        raise HTTPException(404, f"Profile {profile_id} not found")
+    others = session.exec(select(Profile)).all()
+    for o in others:
+        o.is_active = False
+        session.add(o)
+    p.is_active = True
+    session.add(p)
+    session.commit()
+    return p.settings
 
 
 @router.post("/profiles/{profile_id}/save")
 @limiter.limit("100/minute")
-async def save_profile(request: Request, profile_id: int):
-    for p in _profiles:
-        if p["id"] == profile_id:
-            p["settings"] = copy.deepcopy(_state["settings"])
-            return {"ok": True, "id": p["id"], "name": p["name"]}
-    raise HTTPException(404, f"Profile {profile_id} not found")
+async def save_profile(request: Request, profile_id: int, session: Session = Depends(get_session)):
+    p = session.get(Profile, profile_id)
+    if not p:
+        raise HTTPException(404, f"Profile {profile_id} not found")
+    p.settings = _get_active_settings(session)
+    session.add(p)
+    session.commit()
+    return {"ok": True, "id": p.id, "name": p.name}
 
 
 # ── Chip-load Calculator ─────────────────────────────────
@@ -551,16 +600,20 @@ async def calc_params(request: Request, req: CalcParamsRequest):
 
 @router.post("/nest")
 @limiter.limit("10/minute")
-def nest(request: Request):
-    if not _state["doors"]:
+def nest(request: Request, session: Session = Depends(get_session)):
+    global _nesting_result
+    doors_db = session.exec(select(Door)).all()
+    if not doors_db:
         raise HTTPException(400, "No parts to nest")
-
-    s = _state["settings"]
-    logger.info(f"Starting nesting for {len(_state['doors'])} doors")
+    
+    doors = [d.model_dump() for d in doors_db]
+    offcuts = [o.model_dump() for o in session.exec(select(Offcut)).all()]
+    s = _get_active_settings(session)
+    logger.info(f"Starting nesting for {len(doors)} doors")
     try:
         result = do_nesting(
-            doors=_state["doors"],
-            offcuts=_state["offcuts"],
+            doors=doors,
+            offcuts=offcuts,
             sheet_w=s["sheet_w"], sheet_h=s["sheet_h"],
             margin=s["margin"], kerf=s["kerf"],
             allow_rotation=s["allow_rotation"],
@@ -608,14 +661,16 @@ def nest(request: Request):
         "total_estimate": round(total_material + total_labor, 2)
     }
 
-    _state["nesting_result"] = result
+    global _nesting_result
+    _nesting_result = result
     return result
 
 
 @router.post("/update-nesting")
 @limiter.limit("100/minute")
 async def update_nesting(request: Request, payload: dict):
-    _state["nesting_result"] = payload
+    global _nesting_result
+    _nesting_result = payload
     return {"ok": True}
 
 
@@ -625,9 +680,9 @@ from fastapi.responses import Response
 
 @router.post("/labels/pdf")
 @limiter.limit("10/minute")
-def create_labels_pdf(request: Request, req: LabelRequest):
+def create_labels_pdf(request: Request, req: LabelRequest, session: Session = Depends(get_session)):
     logger.info(f"Generating PDF labels for order {req.order_id}")
-    pdf_buffer = generate_labels_pdf(req, _state["settings"])
+    pdf_buffer = generate_labels_pdf(req, _get_active_settings(session))
     return Response(
         content=pdf_buffer.getvalue(),
         media_type="application/pdf",
@@ -636,14 +691,16 @@ def create_labels_pdf(request: Request, req: LabelRequest):
 
 @router.get("/labels/pdf")
 @limiter.limit("10/minute")
-def create_labels_pdf_get(request: Request):
-    order_id = _state["settings"].get("order_id", "")
+def create_labels_pdf_get(request: Request, session: Session = Depends(get_session)):
+    s = _get_active_settings(session)
+    order_id = s.get("order_id", "")
     logger.info(f"Generating PDF labels (GET) for order {order_id}")
+    doors = [d.model_dump() for d in session.exec(select(Door)).all()]
     req = LabelRequest(
         order_id=order_id,
-        doors=_state["doors"]
+        doors=doors
     )
-    pdf_buffer = generate_labels_pdf(req, _state["settings"])
+    pdf_buffer = generate_labels_pdf(req, s)
     return Response(
         content=pdf_buffer.getvalue(),
         media_type="application/pdf",
@@ -657,15 +714,16 @@ from cutting_map import generate_cutting_map_pdf
 
 @router.get("/cutting-map/pdf")
 @limiter.limit("10/minute")
-def create_cutting_map_pdf(request: Request):
-    if not _state["nesting_result"] or not _state["nesting_result"]["sheets"]:
+def create_cutting_map_pdf(request: Request, session: Session = Depends(get_session)):
+    global _nesting_result
+    if not _nesting_result or not _nesting_result["sheets"]:
         raise HTTPException(400, "No nesting result. Run nesting first.")
-    s = _state["settings"]
+    s = _get_active_settings(session)
     order_id = s.get("order_id", "")
     logger.info(f"Generating Cutting Map PDF for order {order_id}")
     pdf_buffer = generate_cutting_map_pdf(
-        sheets=_state["nesting_result"]["sheets"],
-        sheets_meta=_state["nesting_result"]["sheets_meta"],
+        sheets=_nesting_result["sheets"],
+        sheets_meta=_nesting_result["sheets_meta"],
         mat_z=s["mat_z"], margin=s["margin"],
         order_id=order_id,
     )
@@ -679,12 +737,13 @@ def create_cutting_map_pdf(request: Request):
 
 @router.post("/generate-gcode")
 @limiter.limit("10/minute")
-def generate_gcode(request: Request, req: GenerateRequest):
-    nr = _state["nesting_result"]
+def generate_gcode(request: Request, req: GenerateRequest, session: Session = Depends(get_session)):
+    global _nesting_result
+    nr = _nesting_result
     if not nr or not nr["sheets"]:
         raise HTTPException(400, "Run nesting first")
 
-    s = _state["settings"]
+    s = _get_active_settings(session)
     sheets = nr["sheets"]
 
     if req.sheet_index == -1:
