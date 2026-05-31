@@ -48,41 +48,7 @@ def run_nesting_task(self, doors: list, offcuts: list, settings: dict, user_id: 
             sheet_grain=settings.get("sheet_grain", "None"),
         )
         
-        # Calculate costing
-        total_length_mm = 0
-        frame_w = settings.get("frame_w", 50.0)
-        stepover = settings.get("t6_dia", 12.7) * settings.get("spiral_overlap", 0.5)
-        
-        for sht in result.get("sheets", []):
-            for plc in sht:
-                w, h = plc["w"], plc["h"]
-                total_length_mm += 2 * (w + h)
-                if plc.get("type", "Slab") in ["Shaker", "Shaker Step", "Beaded Shaker", "Thin Rail Shaker"]:
-                    inner_w, inner_h = max(0, w - 2 * frame_w), max(0, h - 2 * frame_w)
-                    total_length_mm += 2 * (inner_w + inner_h)
-                    if settings.get("do_pocket", True) and stepover > 0:
-                        area = inner_w * inner_h
-                        total_length_mm += area / stepover
 
-        feed_xy = settings.get("feed_xy", 3000)
-        time_minutes = (total_length_mm / feed_xy) * 1.1 if feed_xy > 0 else 0
-        time_hours = time_minutes / 60.0
-        
-        sheet_count = len(result.get("sheets", []))
-        sheet_cost = settings.get("sheet_cost", 65.0)
-        shop_rate = settings.get("shop_rate", 85.0)
-        
-        total_material = sheet_count * sheet_cost
-        total_labor = time_hours * shop_rate
-        
-        result["costing"] = {
-            "sheet_count": sheet_count,
-            "material_cost": round(total_material, 2),
-            "machine_time_hours": round(time_hours, 3),
-            "labor_cost": round(total_labor, 2),
-            "total_estimate": round(total_material + total_labor, 2)
-        }
-        
         # Update Job in Database
         with Session(engine) as session:
             job = session.get(Job, self.request.id)

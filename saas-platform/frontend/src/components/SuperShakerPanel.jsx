@@ -929,36 +929,7 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, onNe
               </div>
             )}
 
-            {/* Job Estimate */}
-            {nestingResult && nestingResult.costing && (
-              <section className="rounded-lg p-3 animate-fade-in"
-                       style={{
-                         backgroundColor: "var(--ss-card)",
-                         border: "1px solid rgba(132,204,22,0.2)",
-                         boxShadow: "var(--ss-shadow-sm)",
-                       }}>
-                <h3 className="ss-section-title mb-2 pb-1"
-                    style={{ color: "var(--ss-violet)", borderBottom: "1px solid rgba(108,99,255,0.15)" }}>
-                  Job Estimate
-                </h3>
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div>
-                    <span className="block text-[9px] uppercase" style={{ color: "var(--ss-text-muted)" }}>Material Cost</span>
-                    <span className="font-mono" style={{ color: "var(--ss-text)" }}>${nestingResult.costing.material_cost?.toFixed(2)}</span>
-                    <span className="ml-1" style={{ color: "var(--ss-text-muted)" }}>({nestingResult.costing.sheet_count} sheet{nestingResult.costing.sheet_count !== 1 ? 's' : ''})</span>
-                  </div>
-                  <div>
-                    <span className="block text-[9px] uppercase" style={{ color: "var(--ss-text-muted)" }}>Machine Labor</span>
-                    <span className="font-mono" style={{ color: "var(--ss-text)" }}>${nestingResult.costing.labor_cost?.toFixed(2)}</span>
-                    <span className="ml-1" style={{ color: "var(--ss-text-muted)" }}>({nestingResult.costing.machine_time_hours?.toFixed(1)} hrs)</span>
-                  </div>
-                  <div className="col-span-2 pt-2 mt-1 flex justify-between items-end" style={{ borderTop: "1px solid var(--ss-border)" }}>
-                    <span className="text-[10px] uppercase" style={{ color: "var(--ss-text-muted)" }}>Total Quote Price:</span>
-                    <span className="font-mono font-bold text-lg" style={{ color: "var(--ss-violet)" }}>${nestingResult.costing.total_estimate?.toFixed(2)}</span>
-                  </div>
-                </div>
-              </section>
-            )}
+
 
 
           </div>
