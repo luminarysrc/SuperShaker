@@ -6,6 +6,11 @@ echo "Starting SuperShaker SaaS Prototype..."
 # Get the absolute path to the script directory
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
+# Start Redis via docker-compose
+echo "-> Starting Redis (Docker)..."
+cd "$DIR" || exit 1
+docker-compose up -d redis
+
 # Start the backend in the background
 echo "-> Starting FastAPI Backend (Port 8000)..."
 cd "$DIR/saas-platform/backend" || exit 1
@@ -16,6 +21,14 @@ else
     python3 main.py &
 fi
 BACKEND_PID=$!
+
+echo "-> Starting Celery Worker..."
+if [ -f "$DIR/.venv/bin/celery" ]; then
+    "$DIR/.venv/bin/celery" -A worker.celery_app worker --loglevel=info &
+else
+    python3 -m celery -A worker.celery_app worker --loglevel=info &
+fi
+CELERY_PID=$!
 
 # Start the frontend in the background
 echo "-> Starting React Frontend (Vite)..."
@@ -33,8 +46,10 @@ cleanup() {
     echo ""
     echo "Shutting down SuperShaker SaaS Prototype..."
     kill $BACKEND_PID 2>/dev/null
+    kill $CELERY_PID 2>/dev/null
     kill $FRONTEND_PID 2>/dev/null
     wait $BACKEND_PID 2>/dev/null
+    wait $CELERY_PID 2>/dev/null
     wait $FRONTEND_PID 2>/dev/null
     echo "Shutdown complete."
     exit

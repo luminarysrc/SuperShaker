@@ -11,3 +11,5 @@ sqlmodel
 pyjwt
 passlib[bcrypt]
 cryptography
+celery
+redis

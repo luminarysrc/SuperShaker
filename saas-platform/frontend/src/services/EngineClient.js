@@ -266,6 +266,22 @@ export async function downloadCuttingMapPdf() {
 //  Nesting
 // ═══════════════════════════════════════════════════════════
 
+export async function pollJob(jobId) {
+  while (true) {
+    const r = await fetch(`${API_BASE}/jobs/${jobId}`);
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.detail || `API error: ${r.status}`);
+    }
+    const job = await r.json();
+    if (job.status === "COMPLETED") return job.result;
+    if (job.status === "FAILED") throw new Error(job.error || "Job failed");
+    
+    // Wait before polling again
+    await new Promise(res => setTimeout(res, 1000));
+  }
+}
+
 export async function runNesting() {
   const r = await fetch(`${API_BASE}/nest`, {
     method: "POST",
@@ -275,7 +291,11 @@ export async function runNesting() {
     const err = await r.json().catch(() => ({}));
     throw new Error(err.detail || `API error: ${r.status}`);
   }
-  return r.json();
+  const { job_id } = await r.json();
+  const result = await pollJob(job_id);
+  // Auto-sync back to the memory_store so backend has it for G-code generation
+  await updateNestingResult(result);
+  return result;
 }
 
 export async function updateNestingResult(customLayout) {
@@ -305,7 +325,8 @@ export async function generateFullGcode(sheetIndex = -1) {
     const err = await r.json().catch(() => ({}));
     throw new Error(err.detail || `API error: ${r.status}`);
   }
-  return r.json();
+  const { job_id } = await r.json();
+  return await pollJob(job_id);
 }
 
 // ═══════════════════════════════════════════════════════════

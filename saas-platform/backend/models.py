@@ -26,6 +26,14 @@ class Offcut(SQLModel, table=True):
     h: float
     qty: int = 1
 
+class Job(SQLModel, table=True):
+    id: str = Field(primary_key=True)
+    user_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    type: str = "nesting"
+    status: str = "PENDING"
+    result: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
+    error: Optional[str] = None
+
 class Profile(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: Optional[int] = Field(default=None, foreign_key="user.id")
