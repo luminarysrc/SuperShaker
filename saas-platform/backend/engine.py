@@ -687,7 +687,7 @@ def generate_gcode_for_sheet(
         cl.append(f"S{t6_spindle} M3")
         cl.append("")
 
-        shaker_doors = [d for d in sheet_doors if d['type'] in ('Shaker', 'Shaker Step', 'Beaded Shaker', 'Shaker Rail')]
+        shaker_doors = [d for d in sheet_doors if d['type'] in ('Shaker', 'Shaker Step', 'Beaded Shaker', 'Shaker Rail', 'Thin Rail Shaker')]
         for d in optimize_path(shaker_doors, curr_x, curr_y):
             local_frame_w = frame_w
             _b_px_min = d['x'] + local_frame_w

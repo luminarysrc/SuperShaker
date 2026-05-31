@@ -13,6 +13,36 @@ import {
   parseGcode, downloadGcode, downloadLabelsPdf, downloadCuttingMapPdf, updateNestingResult
 } from "../services/EngineClient.js";
 
+
+function DimensionInput({ valueMm, onChangeMm, useInch, className, placeholder }) {
+  const [str, setStr] = useState("");
+  useEffect(() => {
+    setStr(String(formatDimension(valueMm, useInch)));
+  }, [valueMm, useInch]);
+
+  const handleBlur = () => {
+    const parsed = useInch ? parseDimension(str) * 25.4 : parseDimension(str);
+    if (!isNaN(parsed) && parsed > 0) {
+      onChangeMm(parsed);
+      setStr(String(formatDimension(parsed, useInch)));
+    } else {
+      setStr(String(formatDimension(valueMm, useInch))); // revert
+    }
+  };
+
+  return (
+    <input
+      type="text"
+      value={str}
+      onChange={e => setStr(e.target.value)}
+      onBlur={handleBlur}
+      onKeyDown={e => e.key === 'Enter' && handleBlur()}
+      className={className}
+      placeholder={placeholder}
+    />
+  );
+}
+
 export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, onNestingUpdated, settingsVersion, doorsVersion }) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
@@ -36,8 +66,8 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, onNe
   const [editingValue, setEditingValue] = useState("");
   const [useInch, setUseInch] = useState(false);
   const MM_PER_INCH = 25.4;
-  const toDisplay = (mm) => useInch ? +(mm / MM_PER_INCH).toFixed(3) : mm;
-  const fromDisplay = (val) => useInch ? +(val * MM_PER_INCH).toFixed(2) : val;
+  const toDisplay = (mm) => formatDimension(mm, useInch);
+  const fromDisplay = (val) => useInch ? parseDimension(val) * MM_PER_INCH : parseDimension(val);
   const unitLabel = useInch ? "in" : "mm";
   const feedLabel = useInch ? "in/min" : "mm/min";
   const toFeedDisplay = (mmPerMin) => useInch ? +(mmPerMin / MM_PER_INCH).toFixed(1) : mmPerMin;
@@ -419,34 +449,7 @@ export default function SuperShakerPanel({ onGcodeGenerated, onNestingDone, onNe
             </div>
             
             {/* Cost Settings */}
-            <div className="flex flex-col gap-2 p-2 rounded-lg" style={{ backgroundColor: "var(--ss-input-bg)", border: "1px solid var(--ss-border)" }}>
-              <button 
-                onClick={() => setShowCostSettings(!showCostSettings)}
-                className="flex items-center justify-between text-xs cursor-pointer w-full text-left transition-colors"
-                style={{ color: "var(--ss-text-muted)" }}>
-                <span className="ss-section-title">Job Costing Setup</span>
-                <span style={{ color: "var(--ss-violet)" }}>{showCostSettings ? '▼' : '▶'}</span>
-              </button>
-              
-              {showCostSettings && (
-                <div className="grid grid-cols-2 gap-2 pt-2 animate-fade-in" style={{ borderTop: "1px solid var(--ss-border)" }}>
-                  <div>
-                    <label className="text-[10px] block mb-0.5" style={{ color: "var(--ss-text-muted)" }}>Sheet Cost ($)</label>
-                    <input type="number" 
-                      value={settings.sheet_cost ?? 65.0}
-                      onChange={e => handleSettingsChange("sheet_cost", parseFloat(e.target.value) || 0)}
-                      className="ss-input w-full text-xs py-1.5" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] block mb-0.5" style={{ color: "var(--ss-text-muted)" }}>Shop Rate ($/hr)</label>
-                    <input type="number" 
-                      value={settings.shop_rate ?? 85.0}
-                      onChange={e => handleSettingsChange("shop_rate", parseFloat(e.target.value) || 0)}
-                      className="ss-input w-full text-xs py-1.5" />
-                  </div>
-                </div>
-              )}
-            </div>
+            
 
             {/* Add door */}
             <section className="space-y-4">
