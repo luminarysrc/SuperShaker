@@ -6,8 +6,12 @@ RUN npm install
 COPY saas-platform/frontend/ ./
 RUN npm run build
 
-# Stage 2: Final image with FastAPI and built frontend
+# Stage 2: Final image with FastAPI, Celery, Redis, and built frontend
 FROM python:3.11-slim
+
+# Install system dependencies: redis-server and supervisor
+RUN apt-get update && apt-get install -y redis-server supervisor && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Install dependencies
@@ -20,11 +24,14 @@ COPY saas-platform/backend/ ./backend/
 # Copy built frontend from Stage 1
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
+# Copy supervisord config
+COPY deploy/gcp/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
 # Expose the port Cloud Run will use
 ENV PORT=8080
 EXPOSE 8080
 
 WORKDIR /app/backend
 
-# Run the application using Uvicorn directly
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --workers 1"]
+# Run supervisord to manage all processes
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
