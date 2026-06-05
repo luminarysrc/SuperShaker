@@ -1,3 +1,3 @@
-## 2024-05-24 - File Input Accessibility
-**Learning:** File inputs (`<input type="file">`) hidden via CSS `display: none` cannot receive keyboard focus, breaking accessibility for screen reader and keyboard users.
-**Action:** Use visually hidden utility classes (`sr-only`) on the input, and use `focus-within:ring-2` on the parent `<label>` wrapper to ensure the visual focus indicator is shown when the child input is focused via keyboard.
+## 2026-06-05 - Accessible File Inputs
+**Learning:** Using `hidden` or `display: none` on `<input type="file">` removes it from the accessibility tree, making it impossible for keyboard users or screen readers to focus or interact with it.
+**Action:** Instead of `hidden`, apply the `sr-only` (screen-reader only) utility class to the input so it remains in the DOM and focusable. Add focus indication styling (like `focus-within:ring-2`) to its parent `<label>` so the visual button receives a focus outline when the hidden input is focused via keyboard.
