@@ -2,7 +2,7 @@
 FROM node:20-slim AS frontend-builder
 WORKDIR /app/frontend
 COPY saas-platform/frontend/package.json saas-platform/frontend/pnpm-lock.yaml ./
-RUN npm install -g pnpm
+RUN corepack enable pnpm
 RUN pnpm install --frozen-lockfile
 COPY saas-platform/frontend/ ./
 RUN pnpm run build
