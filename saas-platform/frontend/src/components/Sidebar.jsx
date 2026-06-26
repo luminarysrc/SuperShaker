@@ -249,7 +249,6 @@ export default function Sidebar({
                 <button
                   onClick={handleCreateProfile}
                   disabled={!newProfileName.trim()}
-                  aria-label="Create new profile"
                   className="px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:outline-none"
                   style={{
                     backgroundColor: "var(--ss-accent-soft)",
