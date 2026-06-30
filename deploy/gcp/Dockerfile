@@ -3,6 +3,8 @@ FROM node:20-slim AS frontend-builder
 WORKDIR /app/frontend
 COPY saas-platform/frontend/package.json saas-platform/frontend/pnpm-lock.yaml ./
 RUN npm install -g pnpm
+ENV CI=false
+RUN pnpm config set ignore-scripts true
 RUN pnpm install --frozen-lockfile
 COPY saas-platform/frontend/ ./
 RUN pnpm run build
