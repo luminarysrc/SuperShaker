@@ -3,9 +3,9 @@ FROM node:20-slim AS frontend-builder
 WORKDIR /app/frontend
 RUN npm install -g pnpm
 COPY saas-platform/frontend/package*.json saas-platform/frontend/pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN pnpm config set ignore-scripts true && export CI=false && pnpm install --frozen-lockfile
 COPY saas-platform/frontend/ ./
-RUN pnpm run build
+RUN pnpm config set ignore-scripts true && export CI=false && pnpm run build
 
 # Stage 2: Final image with FastAPI, Celery, Redis, and built frontend
 FROM python:3.11-slim
