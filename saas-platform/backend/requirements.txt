@@ -9,6 +9,7 @@ slowapi
 sqlmodel
 sqlmodel
 pyjwt
+bcrypt==4.0.1
 passlib[bcrypt]
 cryptography
 celery

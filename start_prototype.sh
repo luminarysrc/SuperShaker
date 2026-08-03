@@ -36,9 +36,9 @@ cd "$DIR/saas-platform/frontend" || exit 1
 # Ensure dependencies are installed
 if [ ! -d "node_modules" ]; then
     echo "Installing frontend dependencies..."
-    npm install
+    pnpm install
 fi
-npm run dev &
+pnpm run dev &
 FRONTEND_PID=$!
 
 # Function to clean up background processes on exit
