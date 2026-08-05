@@ -119,18 +119,31 @@ _nesting_result = None
 def on_startup():
     create_db_and_tables()
     
-    # Simple migration for SQLite to add user_id column if it doesn't exist
+    # SQLite migration: safely add columns that may not exist in older DBs
+    # Each ALTER TABLE is wrapped in try/except — SQLite raises if column already exists
+    migrations = [
+        # Original migrations
+        ("door",    "ADD COLUMN user_id INTEGER REFERENCES user(id)"),
+        ("offcut",  "ADD COLUMN user_id INTEGER REFERENCES user(id)"),
+        ("profile", "ADD COLUMN user_id INTEGER REFERENCES user(id)"),
+        # New Door columns from models.py update
+        ("door", "ADD COLUMN cabinet_id TEXT"),
+        ("door", "ADD COLUMN articul TEXT"),
+        ("door", "ADD COLUMN cabinet_position TEXT"),
+        ("door", "ADD COLUMN skip_drilling INTEGER NOT NULL DEFAULT 0"),
+        # Job table (may be missing in old DBs)
+        ("job", "ADD COLUMN user_id INTEGER REFERENCES user(id)"),
+    ]
     with engine.connect() as conn:
-        for table in ["door", "offcut", "profile"]:
+        for table, stmt in migrations:
             try:
-                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN user_id INTEGER REFERENCES user(id)"))
+                conn.execute(text(f"ALTER TABLE {table} {stmt}"))
                 conn.commit()
             except Exception:
-                # Column probably already exists or table doesn't exist
-                pass
+                pass   # Column already exists or table doesn't exist yet — safe to ignore
                 
     with Session(engine) as session:
-        # Check if default user exists
+        # Ensure default admin user exists
         default_email = "admin@supershaker.com"
         admin = session.exec(select(User).where(User.email == default_email)).first()
         if not admin:
