@@ -5,3 +5,7 @@
 ## 2024-05-18 - Keyboard Navigation for File Inputs
 **Learning:** Using `className="hidden"` on `<input type="file">` inside a styled `<label>` prevents the input from being keyboard-focusable. Testing focus state of visually hidden elements with Playwright is tricky and sometimes requires manually evaluating JS `focus()` calls or very precise tabbing depending on layout timing and dialog states.
 **Action:** Always use `sr-only` instead of `hidden` for interactive inputs, and apply `focus-within:ring-2` to their parent wrapping elements to ensure visible focus indicators.
+
+## 2024-05-18 - ARIA Labels Warning
+**Learning:** Duplicate `aria-label` definitions in React (where an element has both `aria-label` and `title` or another aria-label prop) might cause Vite to warn in production builds, but blindly deleting them from icon-only buttons causes a major accessibility regression.
+**Action:** Do not remove `aria-label` from icon-only buttons to fix Vite warnings. If needed, investigate the specific source of the duplicate prop instead.
