@@ -205,8 +205,8 @@ export default function ToolpathViewer() {
           {/* File Upload */}
           <section className="space-y-2">
             <SectionTitle>Or Load File</SectionTitle>
-            <label className="ss-btn-ghost w-full text-sm text-center block cursor-pointer py-2.5">
-              <input type="file" accept=".nc,.gcode,.tap,.txt" className="hidden" onChange={handleFileUpload} />
+            <label className="ss-btn-ghost w-full text-sm text-center block cursor-pointer py-2.5 focus-within:ring-2">
+              <input type="file" accept=".nc,.gcode,.tap,.txt" className="sr-only" onChange={handleFileUpload} />
               Upload .nc File
             </label>
           </section>
