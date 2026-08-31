@@ -91,8 +91,7 @@ export default function LoginScreen({ onLogin }) {
           border: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`,
           color: isDark ? "#a1a1aa" : "#52525b",
         }}
-        title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-        aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+
       >
         {isDark ? (
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
