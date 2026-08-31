@@ -85,7 +85,7 @@ export default function LoginScreen({ onLogin }) {
       <button
         onClick={toggleTheme}
         className="fixed top-5 right-5 w-9 h-9 rounded-lg flex items-center justify-center transition-all z-50 focus-visible:ring-2 focus-visible:outline-none"
-        aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+
         style={{
           backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
           border: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`,
