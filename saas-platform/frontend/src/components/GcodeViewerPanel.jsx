@@ -22,7 +22,7 @@ const DEFAULT_VISIBLE = { rapid: false, pocket: true, contour: true, step: true,
 function LayerRow({ def, checked, onChange }) {
   return (
     <label
-      className="flex items-center gap-2.5 px-2 py-1.5 rounded-md cursor-pointer transition-colors"
+      className="flex items-center gap-2.5 px-2 py-1.5 rounded-md cursor-pointer transition-colors focus-within:ring-2 focus-within:ring-lime-500 focus-within:outline-none"
       style={{ backgroundColor: checked ? `${def.color}12` : "transparent" }}
     >
       <span
@@ -31,7 +31,7 @@ function LayerRow({ def, checked, onChange }) {
       />
       <input
         type="checkbox"
-        className="hidden"
+        className="sr-only"
         checked={checked}
         onChange={e => onChange(def.key, e.target.checked)}
       />
@@ -371,7 +371,6 @@ export default function GcodeViewerPanel({
             onClick={() => setFitTrigger(t => t + 1)}
             disabled={!displayData && !nestingResult}
             title="Fit scene to view"
-            aria-label="Fit scene to view"
             className="h-10 px-3 rounded-lg transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-30 disabled:pointer-events-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:outline-none"
             style={toolbarBtnStyle}
           >
@@ -409,7 +408,6 @@ export default function GcodeViewerPanel({
           className="w-10 h-10 rounded-lg cursor-pointer transition-all flex items-center justify-center active:scale-95 disabled:opacity-30 focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:outline-none"
           style={toolbarBtnStyle}
           title="Import CSV/Excel Door List"
-          aria-label="Import CSV/Excel Door List"
           disabled={isUploadingExcel}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
@@ -424,13 +422,12 @@ export default function GcodeViewerPanel({
           className="w-10 h-10 rounded-lg cursor-pointer transition-all flex items-center justify-center active:scale-95 focus-within:ring-2 focus-within:ring-lime-500 focus-within:outline-none"
           style={toolbarBtnStyle}
           title="Upload G-code file"
-          aria-label="Upload G-code file"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
           </svg>
-          <input type="file" accept=".nc,.gcode,.ngc,.txt" className="hidden" onChange={handleFileUpload} />
+          <input type="file" accept=".nc,.gcode,.ngc,.txt" className="sr-only" onChange={handleFileUpload} />
         </label>
 
         {/* Download */}
@@ -440,7 +437,6 @@ export default function GcodeViewerPanel({
           className="w-10 h-10 rounded-lg transition-all flex items-center justify-center active:scale-95 disabled:opacity-30 disabled:pointer-events-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:outline-none"
           style={toolbarBtnStyle}
           title="Download G-code"
-          aria-label="Download G-code"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -494,7 +490,7 @@ export default function GcodeViewerPanel({
                 Nesting layout changed — regenerate G-code to update the 3D view
                 <button
                   onClick={() => setNestingDirty(false)}
-                  aria-label="Close"
+                  title="Close"
                   className="focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:outline-none rounded px-1"
                   style={{ opacity: 0.6, fontSize: 16, lineHeight: 1 }}
                 >×</button>
@@ -540,7 +536,7 @@ export default function GcodeViewerPanel({
                   type="range"
                   min="0"
                   max="1000"
-                  aria-label="Simulation progress"
+                  title="Simulation progress"
                   value={Math.round(toolProgress * 1000)}
                   onChange={e => { setIsPlaying(false); setToolProgress(parseInt(e.target.value) / 1000); }}
                   className="w-full h-[3px] rounded-full appearance-none cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
@@ -556,7 +552,6 @@ export default function GcodeViewerPanel({
                     onClick={() => { if (toolProgress >= 1) setToolProgress(0); setIsPlaying(p => !p); }}
                     className="flex items-center justify-center w-8 h-8 rounded-lg transition-all active:scale-95 border focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
                     title={isPlaying ? "Pause simulation" : "Play simulation"}
-                    aria-label={isPlaying ? "Pause simulation" : "Play simulation"}
                     style={{
                       backgroundColor: isPlaying ? "var(--ss-accent-soft)" : "transparent",
                       borderColor: isPlaying ? "rgba(132,204,22,0.3)" : "var(--ss-border)",
@@ -573,21 +568,19 @@ export default function GcodeViewerPanel({
                       onClick={() => { setToolProgress(0); setIsPlaying(false); }}
                       className="text-[9px] transition-colors rounded px-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
                       title="Reset simulation"
-                      aria-label="Reset simulation"
                       style={{ color: "var(--ss-text-muted)" }}
                     >
                       ↤ Reset
                     </button>
                   </div>
                   <div className="flex-1" />
-                  <div className="ss-segment" role="group" aria-label="Playback speed">
+                  <div className="ss-segment" role="group" title="Playback speed">
                     {[0.5, 1, 2, 5].map(s => (
                       <button
                         key={s}
                         onClick={() => setPlaySpeed(s)}
                         className={`ss-segment-btn ${playSpeed === s ? "active" : ""} focus-visible:outline focus-visible:outline-2 focus-visible:outline-white`}
                         aria-pressed={playSpeed === s}
-                        aria-label={`Playback speed ${s}x`}
                         title={`Playback speed ${s}x`}
                         style={{ fontSize: 10, padding: "3px 6px" }}
                       >{s}×</button>
@@ -654,7 +647,7 @@ export default function GcodeViewerPanel({
           <div className="rounded-xl shadow-2xl w-96 p-5 animate-fade-in" style={{ backgroundColor: "var(--ss-surface)", border: "1px solid var(--ss-border)" }}>
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-base" style={{ color: "var(--ss-text)" }}>Import Door List</h3>
-              <button onClick={() => { setShowImportModal(false); setPendingFile(null); }} className="p-1 rounded opacity-50 hover:opacity-100 transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-white" aria-label="Close import dialog" title="Close">
+              <button onClick={() => { setShowImportModal(false); setPendingFile(null); }} className="p-1 rounded opacity-50 hover:opacity-100 transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-white" title="Close import dialog">
                 &times;
               </button>
             </div>
@@ -700,9 +693,9 @@ export default function GcodeViewerPanel({
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <label className="ss-btn-ghost flex-1 py-2 text-center cursor-pointer text-xs">
+                    <label className="ss-btn-ghost flex-1 py-2 text-center cursor-pointer text-xs focus-within:ring-2 focus-within:ring-lime-500 focus-within:outline-none">
                       Choose .csv or .xlsx
-                      <input type="file" accept=".xlsx,.csv" className="hidden" onChange={(e) => setPendingFile(e.target.files?.[0])} />
+                      <input type="file" accept=".xlsx,.csv" className="sr-only" onChange={(e) => setPendingFile(e.target.files?.[0])} />
                     </label>
                   </div>
                 )}
