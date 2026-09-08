@@ -246,10 +246,9 @@ export default function Sidebar({
                   placeholder="New profile name…"
                   className="ss-input flex-1 min-w-0 text-[11px] py-1.5"
                 />
-                <button
+                <button aria-label="Create new profile"
                   onClick={handleCreateProfile}
                   disabled={!newProfileName.trim()}
-                  aria-label="Create new profile"
                   className="px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:outline-none"
                   style={{
                     backgroundColor: "var(--ss-accent-soft)",
