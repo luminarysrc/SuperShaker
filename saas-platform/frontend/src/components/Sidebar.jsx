@@ -67,7 +67,7 @@ export default function Sidebar({
       <div className="relative" ref={profileMenuRef}>
         <button 
           onClick={() => { setShowProfileMenu(!showProfileMenu); setShowMachinePanel(false); }}
-          className="w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold transition-all active:scale-95 focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:outline-none"
+          className="w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold transition-all active:scale-95 focus:ring-2 focus:ring-lime-500 focus:outline-none"
           style={{
             backgroundColor: "var(--ss-accent)",
             color: "#FFFFFF",
@@ -105,7 +105,7 @@ export default function Sidebar({
       <div className="relative mt-4" ref={machinePanelRef}>
         <button
           onClick={() => { setShowMachinePanel(!showMachinePanel); setShowProfileMenu(false); }}
-          className="w-10 h-10 rounded-lg flex items-center justify-center transition-all active:scale-95 focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:outline-none"
+          className="w-10 h-10 rounded-lg flex items-center justify-center transition-all active:scale-95 focus:ring-2 focus:ring-lime-500 focus:outline-none"
           style={{
             backgroundColor: showMachinePanel ? "var(--ss-accent-soft)" : "var(--ss-card)",
             border: "1px solid " + (showMachinePanel ? "var(--ss-violet)" : "var(--ss-border)"),
@@ -190,7 +190,7 @@ export default function Sidebar({
                     {p.id === activeProfileId && (
                       <button
                         onClick={(e) => { e.stopPropagation(); onProfileSave && onProfileSave(p.id); }}
-                        className="p-1 rounded transition-all focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:outline-none"
+                        className="p-1 rounded transition-all focus:ring-2 focus:ring-lime-500 focus:outline-none"
                         style={{ color: "var(--ss-accent)" }}
                         title="Save current settings"
                         aria-label="Save current settings">
@@ -205,7 +205,7 @@ export default function Sidebar({
                     {/* Rename */}
                     <button
                       onClick={(e) => { e.stopPropagation(); handleStartRename(p); }}
-                      className="p-1 rounded transition-all focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:outline-none"
+                      className="p-1 rounded transition-all focus:ring-2 focus:ring-lime-500 focus:outline-none"
                       style={{ color: "var(--ss-text-muted)" }}
                       title="Rename"
                       aria-label="Rename profile">
@@ -219,7 +219,7 @@ export default function Sidebar({
                     {(profiles || []).length > 1 && (
                       <button
                         onClick={(e) => { e.stopPropagation(); onProfileDelete && onProfileDelete(p.id); }}
-                        className="p-1 rounded transition-all hover:text-red-500 focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:outline-none"
+                        className="p-1 rounded transition-all hover:text-red-500 focus:ring-2 focus:ring-lime-500 focus:outline-none"
                         style={{ color: "var(--ss-text-muted)" }}
                         title="Delete"
                         aria-label="Delete profile">
@@ -250,7 +250,7 @@ export default function Sidebar({
                   onClick={handleCreateProfile}
                   disabled={!newProfileName.trim()}
                   aria-label="Create new profile"
-                  className="px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:outline-none"
+                  className="px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed focus:ring-2 focus:ring-lime-500 focus:outline-none"
                   style={{
                     backgroundColor: "var(--ss-accent-soft)",
                     color: "var(--ss-accent)",
@@ -273,7 +273,7 @@ export default function Sidebar({
 
       {/* Bottom: Logout */}
       <button onClick={onLogout} title="Log out" aria-label="Log out"
-        className="w-10 h-10 rounded-lg transition-all flex items-center justify-center active:scale-95 mb-1 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:outline-none"
+        className="w-10 h-10 rounded-lg transition-all flex items-center justify-center active:scale-95 mb-1 focus:ring-2 focus:ring-red-500 focus:outline-none"
         style={{
           backgroundColor: "var(--ss-card)",
           color: "var(--ss-danger)",
