@@ -255,8 +255,7 @@ export default function Sidebar({
                     backgroundColor: "var(--ss-accent-soft)",
                     color: "var(--ss-accent)",
                     border: "1px solid rgba(132,204,22,0.2)",
-                  }}
-                  aria-label="Create profile">
+                  }}>
                   +
                 </button>
               </div>
