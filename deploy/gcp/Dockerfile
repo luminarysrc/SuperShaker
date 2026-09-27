@@ -1,10 +1,20 @@
 # Stage 1: Build the React frontend
 FROM node:20-slim AS frontend-builder
 WORKDIR /app/frontend
-COPY saas-platform/frontend/package*.json ./
-RUN npm install
+
+# Install pnpm
+RUN npm install -g pnpm
+
+# Copy package.json and pnpm-lock.yaml
+COPY saas-platform/frontend/package.json saas-platform/frontend/pnpm-lock.yaml ./
+
+# Install dependencies using pnpm
+RUN pnpm config set ignore-scripts true && pnpm install --frozen-lockfile
+
+# Copy source code and build
 COPY saas-platform/frontend/ ./
-RUN npm run build
+ENV CI=false
+RUN pnpm run build
 
 # Stage 2: Final image with FastAPI, Celery, Redis, and built frontend
 FROM python:3.11-slim
