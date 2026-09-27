@@ -430,7 +430,7 @@ export default function GcodeViewerPanel({
                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
           </svg>
-          <input type="file" accept=".nc,.gcode,.ngc,.txt" className="hidden" onChange={handleFileUpload} />
+          <input type="file" accept=".nc,.gcode,.ngc,.txt" className="sr-only" onChange={handleFileUpload} />
         </label>
 
         {/* Download */}
@@ -700,9 +700,9 @@ export default function GcodeViewerPanel({
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <label className="ss-btn-ghost flex-1 py-2 text-center cursor-pointer text-xs">
+                    <label className="ss-btn-ghost flex-1 py-2 text-center cursor-pointer text-xs focus-within:ring-2 focus-within:ring-lime-500 focus-within:outline-none">
                       Choose .csv or .xlsx
-                      <input type="file" accept=".xlsx,.csv" className="hidden" onChange={(e) => setPendingFile(e.target.files?.[0])} />
+                      <input type="file" accept=".xlsx,.csv" className="sr-only" onChange={(e) => setPendingFile(e.target.files?.[0])} />
                     </label>
                   </div>
                 )}
