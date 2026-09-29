@@ -12,7 +12,8 @@ RUN pnpm run build
 FROM python:3.11-slim
 
 # Install system dependencies: redis-server and supervisor
-RUN apt-get update && apt-get install -y redis-server supervisor && rm -rf /var/lib/apt/lists/*
+# Use --fix-missing to prevent apt-get update transient issues and clean properly
+RUN apt-get update --fix-missing && apt-get install -y redis-server supervisor && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
