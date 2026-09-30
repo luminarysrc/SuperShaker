@@ -85,7 +85,9 @@ function SheetTabs({ count, activeIdx, sheetsMeta, onSwitch }) {
       {Array.from({ length: count }, (_, i) => {
         const isOffcut = sheetsMeta?.[i]?.is_offcut;
         return (
-          <button key={i} onClick={() => onSwitch(i)} className="px-3 py-1 rounded-md text-xs font-mono transition-all"
+          <button key={i} onClick={() => onSwitch(i)}
+            className="px-3 py-1 rounded-md text-xs font-mono transition-all focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:outline-none"
+            aria-label={isOffcut ? `Offcut ${i + 1}` : `Sheet ${i + 1}`}
             style={{ backgroundColor: activeIdx === i ? "var(--ss-accent-soft)" : "transparent", color: activeIdx === i ? "var(--ss-accent)" : "var(--ss-text-muted)", border: activeIdx === i ? "1px solid rgba(132,204,22,0.25)" : "1px solid transparent" }}>
             {isOffcut ? `✂ Off${i + 1}` : `S${i + 1}`}
           </button>
