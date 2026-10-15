@@ -13,3 +13,5 @@ passlib[bcrypt]
 cryptography
 celery
 redis
+
+bcrypt==4.0.1
