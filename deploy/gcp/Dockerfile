@@ -1,7 +1,7 @@
 # Stage 1: Build the React frontend
 FROM node:20-slim AS frontend-builder
 WORKDIR /app/frontend
-COPY saas-platform/frontend/package.json saas-platform/frontend/pnpm-lock.yaml ./
+COPY saas-platform/frontend/package*.json saas-platform/frontend/pnpm-lock.yaml ./
 RUN npm install -g pnpm && pnpm config set ignore-scripts true && pnpm install --frozen-lockfile
 COPY saas-platform/frontend/ ./
 ENV CI=false
